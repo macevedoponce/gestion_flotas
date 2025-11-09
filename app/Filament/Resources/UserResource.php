@@ -4,67 +4,61 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
-use App\Models\Rol;
 use Filament\Forms;
-use Filament\Tables;
-use Filament\Resources\Resource;
 use Filament\Forms\Form;
+use Filament\Resources\Resource;
+use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Columns\BadgeColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
 use Illuminate\Support\Facades\Hash;
+use Spatie\Permission\Models\Role;
 
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationLabel = 'Usuarios';
-    protected static ?string $pluralModelLabel = 'Usuarios';
-    protected static ?string $modelLabel = 'Usuario';
     protected static ?string $navigationGroup = 'Usuarios y Permisos';
+    protected static ?string $navigationLabel = 'Usuarios';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                TextInput::make('name')
+                Forms\Components\TextInput::make('name')
                     ->label('Nombre completo')
                     ->required()
-                    ->maxLength(150),
+                    ->maxLength(255),
 
-                TextInput::make('email')
+                Forms\Components\TextInput::make('email')
                     ->label('Correo electrónico')
                     ->email()
                     ->required()
                     ->unique(ignoreRecord: true),
 
-                TextInput::make('telefono')
+                Forms\Components\TextInput::make('password')
+                    ->label('Contraseña')
+                    ->password()
+                    ->dehydrateStateUsing(fn($state) => filled($state) ? Hash::make($state) : null)
+                    ->required(fn (string $context): bool => $context === 'create')
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->maxLength(255)
+                    ->helperText('Solo cambia la contraseña si ingresas un nuevo valor.'),
+
+                Forms\Components\TextInput::make('telefono')
                     ->label('Teléfono')
                     ->maxLength(30)
                     ->nullable(),
 
-                Select::make('id_rol')
-                    ->label('Rol')
-                    ->options(Rol::all()->pluck('nombre', 'id_rol'))
-                    ->searchable()
-                    ->required(),
-
-                Toggle::make('activo')
+                Forms\Components\Toggle::make('activo')
                     ->label('Activo')
                     ->default(true),
 
-                TextInput::make('password')
-                    ->label('Contraseña')
-                    ->password()
-                    ->dehydrateStateUsing(fn ($state) => !empty($state) ? Hash::make($state) : null)
-                    ->required(fn (string $context): bool => $context === 'create')
-                    ->dehydrated(fn ($state) => filled($state))
-                    ->maxLength(255)
-                    ->helperText('Se encriptará automáticamente.'),
+                Forms\Components\Select::make('roles')
+                    ->label('Roles asignados')
+                    ->multiple()
+                    ->relationship('roles', 'name')
+                    ->preload()
+                    ->helperText('Selecciona uno o más roles para este usuario.'),
             ]);
     }
 
@@ -72,18 +66,19 @@ class UserResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')->label('ID')->sortable(),
-                TextColumn::make('name')->label('Nombre')->searchable()->sortable(),
-                TextColumn::make('email')->label('Correo')->searchable(),
-                TextColumn::make('rol.nombre')->label('Rol')->sortable(),
-                BadgeColumn::make('activo')
-                    ->label('Estado')
-                    ->colors([
-                        'success' => fn ($state) => $state === true,
-                        'danger' => fn ($state) => $state === false,
-                    ])
-                    ->formatStateUsing(fn ($state) => $state ? 'Activo' : 'Inactivo'),
-                TextColumn::make('created_at')->label('Creado')->dateTime('d/m/Y H:i'),
+                Tables\Columns\TextColumn::make('name')->label('Nombre')->searchable(),
+                Tables\Columns\TextColumn::make('email')->label('Correo')->searchable(),
+                Tables\Columns\TextColumn::make('roles.name')
+                    ->label('Roles')
+                    ->badge()
+                    ->sortable(),
+                Tables\Columns\IconColumn::make('activo')
+                    ->label('Activo')
+                    ->boolean(),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Creado')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable(),
             ])
             ->filters([
                 Tables\Filters\TernaryFilter::make('activo')->label('Activo'),

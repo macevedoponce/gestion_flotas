@@ -21,7 +21,6 @@ return new class extends Migration
             $table->timestamps();
 
             $table->string('telefono', 30)->nullable();
-            $table->foreignId('id_rol')->nullable()->constrained('roles', 'id_rol')->nullOnDelete();
             $table->boolean('activo')->default(true);
         });
 

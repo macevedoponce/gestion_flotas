@@ -6,10 +6,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, HasRoles;
 
     protected $table = 'users';
 
@@ -18,7 +19,6 @@ class User extends Authenticatable
         'email',
         'password',
         'telefono',
-        'id_rol',
         'activo',
     ];
 
@@ -31,11 +31,6 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'activo' => 'boolean',
     ];
-
-    public function rol()
-    {
-        return $this->belongsTo(Rol::class, 'id_rol', 'id_rol');
-    }
 
     protected function casts(): array
     {
