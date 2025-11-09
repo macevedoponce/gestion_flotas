@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -51,7 +50,10 @@ class ConductoresTableSeeder extends Seeder
         ];
 
         foreach ($conductores as $conductor) {
-            DB::table('conductores')->insert($conductor);
+            DB::table('conductores')->updateOrInsert(
+                ['documento_identidad' => $conductor['documento_identidad']],
+                $conductor
+            );
         }
     }
 }
