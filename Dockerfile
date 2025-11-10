@@ -1,34 +1,36 @@
-# Base PHP CLI
+# 🐘 Imagen base PHP con extensiones necesarias
 FROM php:8.2-cli
 
-# Evitar interacción en la instalación
+# Evita prompts interactivos
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar extensiones y dependencias necesarias
+# Instalar dependencias del sistema, PHP y Node
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
     libicu-dev \
     libpq-dev \
     libzip-dev \
-    npm \
+    zip \
     nodejs \
+    npm \
     && docker-php-ext-install intl pdo pdo_pgsql zip
 
-# Instalar Composer
+# Instalar Composer (desde imagen oficial)
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Configurar directorio de trabajo
+# Establecer el directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiar el código
-COPY . .
+# Copiar solo los archivos de Composer para aprovechar la caché
+COPY composer.json composer.lock* ./
+RUN composer install --no-interaction --prefer-dist || true
 
-# Configurar Git para evitar "dubious ownership"
-RUN git config --global --add safe.directory /var/www/html
+# ⚠️ No copiamos todo el código aquí porque el volumen ya lo montará
+# COPY . .
 
-# Instalar dependencias de PHP
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
-
-# Exponer puerto para Laravel
+# Exponer puerto para el servidor de desarrollo
 EXPOSE 8000
+
+# Comando por defecto (espera a que el contenedor arranque correctamente)
+CMD php artisan serve --host=0.0.0.0 --port=8000
