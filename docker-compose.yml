@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    container_name: gestion_flotas_db
+    restart: always
+    environment:
+      POSTGRES_DB: gestion_flotas
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: gestion_flotas_app
+    restart: on-failure
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/var/www/html
+    environment:
+      APP_ENV: local
+      APP_DEBUG: true
+      APP_KEY: base64:GENERATE_A_KEY
+      DB_CONNECTION: pgsql
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_DATABASE: gestion_flotas
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+    command: bash -c "php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=8000"
+
+volumes:
+  pgdata:

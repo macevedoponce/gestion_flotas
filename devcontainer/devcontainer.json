@@ -1,0 +1,11 @@
+mkdir -p .devcontainer
+cat > .devcontainer/devcontainer.json <<'EOF'
+{
+  "name": "Laravel + Postgres",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "app",
+  "workspaceFolder": "/var/www/html",
+  "forwardPorts": [8000],
+  "postCreateCommand": "composer install --no-interaction --prefer-dist && php artisan key:generate"
+}
+EOF
