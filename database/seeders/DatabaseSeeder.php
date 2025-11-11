@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             TiposMantenimientoTableSeeder::class,
             TiposEventoEmergenciaTableSeeder::class,
             VehiculosTableSeeder::class,
+            CecosTableSeeder::class,
             ProyectosTableSeeder::class,
             SolicitudVehiculoTableSeeder::class,
             AsignacionesVehiculosTableSeeder::class,

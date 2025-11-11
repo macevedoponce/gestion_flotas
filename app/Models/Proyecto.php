@@ -13,22 +13,26 @@ class Proyecto extends Model
     protected $primaryKey = 'id_proyecto';
 
     protected $fillable = [
-        'codigo_anexo',
-        'descripcion',
-        'responsable_id',
-        'lugar_trabajo',
+        'ceco_id',
+        'anexo',
+        'anexo_descripcion',
+        'encargado_id',
+        'region',
+        'unidad_negocio',
+        'tipo_flujo',
+        'proyecto',
         'fecha_inicio',
         'fecha_fin',
         'estado',
     ];
 
-    public function responsable()
+    public function ceco()
     {
-        return $this->belongsTo(User::class, 'responsable_id', 'id');
+        return $this->belongsTo(Ceco::class, 'ceco_id', 'id_ceco');
     }
 
-    public function asignaciones()
+    public function encargado()
     {
-        return $this->hasMany(AsignacionVehiculo::class, 'id_proyecto');
+        return $this->belongsTo(User::class, 'encargado_id');
     }
 }
