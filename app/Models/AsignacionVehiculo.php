@@ -21,31 +21,36 @@ class AsignacionVehiculo extends Model
         'fecha_asignacion',
         'fecha_finalizacion',
         'estado',
-        'observaciones'
+        'observaciones',
     ];
 
     public function solicitud()
     {
-        return $this->belongsTo(SolicitudVehiculo::class, 'id_solicitud');
+        return $this->belongsTo(SolicitudVehiculo::class, 'id_solicitud', 'id_solicitud');
     }
 
     public function proyecto()
     {
-        return $this->belongsTo(Proyecto::class, 'id_proyecto');
+        return $this->belongsTo(Proyecto::class, 'id_proyecto', 'id_proyecto');
     }
 
     public function vehiculo()
     {
-        return $this->belongsTo(Vehiculo::class, 'id_vehiculo');
+        return $this->belongsTo(Vehiculo::class, 'id_vehiculo', 'id_vehiculo');
     }
 
     public function conductor()
     {
-        return $this->belongsTo(Conductor::class, 'id_conductor');
+        return $this->belongsTo(Conductor::class, 'id_conductor', 'id_conductor');
     }
 
     public function jefeControl()
     {
         return $this->belongsTo(User::class, 'id_jefe_control');
+    }
+
+    public function devoluciones()
+    {
+        return $this->hasMany(SolicitudDevolucion::class, 'id_asignacion', 'id_asignacion');
     }
 }

@@ -9,16 +9,18 @@ return new class extends Migration {
     public function up(): void {
         Schema::create('solicitudes_devolucion', function (Blueprint $table) {
             $table->id('id_devolucion');
-            $table->foreignId('id_asignacion')->nullable()->constrained('asignaciones_vehiculos','id_asignacion');
-            $table->foreignId('id_usuario_solicitante')->nullable()->constrained('users','id');
+            $table->foreignId('id_asignacion')->constrained('asignaciones_vehiculos','id_asignacion')->cascadeOnDelete();
+            $table->foreignId('id_usuario_solicitante')->nullable()->constrained('users','id')->nullOnDelete();
             $table->timestamp('fecha_solicitud')->useCurrent();
+
             $table->json('fotos_evidencia')->nullable();
             $table->json('videos_evidencia')->nullable();
-            // ubicacion_entrega geography
+
             $table->string('ubicacion_text', 250)->nullable();
             $table->text('observaciones')->nullable();
+
             $table->string('estado',20)->default('PENDIENTE');
-            $table->foreignId('validado_por')->nullable()->constrained('users','id');
+            $table->foreignId('validado_por')->nullable()->constrained('users','id')->nullOnDelete();
             $table->timestamp('fecha_revision')->nullable();
             $table->text('comentarios_revision')->nullable();
             $table->timestamps();

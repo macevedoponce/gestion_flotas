@@ -2,21 +2,26 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class SolicitudDevolucion extends Model
 {
+    use HasFactory;
+
     protected $table = 'solicitudes_devolucion';
     protected $primaryKey = 'id_devolucion';
-    public $timestamps = false;
+
+    protected $casts = [
+        'fotos_evidencia' => 'array',
+        'videos_evidencia' => 'array',
+    ];
 
     protected $fillable = [
         'id_asignacion',
         'id_usuario_solicitante',
-        'fecha_solicitud',
         'fotos_evidencia',
         'videos_evidencia',
-        'ubicacion_entrega',
         'ubicacion_text',
         'observaciones',
         'estado',
@@ -25,14 +30,9 @@ class SolicitudDevolucion extends Model
         'comentarios_revision',
     ];
 
-    protected $casts = [
-        'fotos_evidencia' => 'array',
-        'videos_evidencia' => 'array',
-    ];
-
     public function asignacion()
     {
-        return $this->belongsTo(AsignacionVehiculo::class, 'id_asignacion');
+        return $this->belongsTo(AsignacionVehiculo::class, 'id_asignacion', 'id_asignacion');
     }
 
     public function solicitante()
