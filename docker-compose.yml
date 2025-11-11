@@ -27,22 +27,35 @@ services:
     environment:
       APP_ENV: local
       APP_DEBUG: true
-      APP_KEY: base64:GENERATE_A_KEY
       DB_CONNECTION: pgsql
       DB_HOST: db
       DB_PORT: 5432
       DB_DATABASE: gestion_flotas
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-    command: bash -c "
-      if [ ! -f artisan ]; then
-        echo '⚙️ No se detecta Laravel, creando proyecto...';
-        composer create-project laravel/laravel .;
-      fi &&
-      php artisan key:generate &&
-      php artisan migrate --force || true &&
-      php artisan serve --host=0.0.0.0 --port=8000
-     "
+    command: |
+              bash -c "
+              echo '🚀 Preparando entorno Laravel...';
+              if [ ! -f .env ]; then
+                cp .env.example .env;
+              fi;
+
+              composer install --no-interaction --prefer-dist;
+              npm install;
+              npm run build;
+              php artisan key:generate --force;
+              php artisan migrate --force || true;
+
+              # Detectar Codespaces y actualizar APP_URL sin puerto
+              if [ -n \"$CODESPACE_NAME\" ]; then
+                export APP_URL=\"https://${CODESPACE_NAME}-8000.app.github.dev\";
+                sed -i '/^APP_URL=/d' .env;
+                echo \"APP_URL=${APP_URL}\" >> .env;
+                echo '🌐 Ejecutando en Codespaces: '${APP_URL};
+              fi;
+
+              php artisan serve --host=0.0.0.0 --port=8000;
+              "
 
 volumes:
   pgdata:

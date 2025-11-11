@@ -1,11 +1,27 @@
-mkdir -p .devcontainer
-cat > .devcontainer/devcontainer.json <<'EOF'
 {
-  "name": "Laravel + Postgres",
-  "dockerComposeFile": ["../docker-compose.yml"],
-  "service": "app",
-  "workspaceFolder": "/var/www/html",
-  "forwardPorts": [8000],
-  "postCreateCommand": "composer install --no-interaction --prefer-dist && php artisan key:generate"
+  "name": "Laravel Gestion Flotas",
+  "image": "mcr.microsoft.com/devcontainers/php:8.2-bullseye",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "postCreateCommand": "composer install && npm install && php artisan key:generate && php artisan migrate --force",
+  "forwardPorts": [8000, 5432],
+  "portsAttributes": {
+    "8000": { "label": "Laravel App", "onAutoForward": "notify" }
+  },
+  "remoteEnv": {
+    "APP_ENV": "local",
+    "APP_DEBUG": "true"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "bmewburn.vscode-intelephense-client",
+        "esbenp.prettier-vscode",
+        "ryannaddy.laravel-artisan",
+        "onecentlin.laravel-blade"
+      ]
+    }
+  }
 }
-EOF

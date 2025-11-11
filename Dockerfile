@@ -1,10 +1,10 @@
-# 🐘 Imagen base PHP con extensiones necesarias
+# 🐘 Imagen base PHP con Node.js y cliente Postgres
 FROM php:8.2-cli
 
 # Evita prompts interactivos
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instalar dependencias del sistema, PHP y Node
+# Instalar dependencias del sistema y PHP
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -14,23 +14,24 @@ RUN apt-get update && apt-get install -y \
     zip \
     nodejs \
     npm \
-    && docker-php-ext-install intl pdo pdo_pgsql zip
+    && docker-php-ext-install intl pdo pdo_pgsql zip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Instalar Composer (desde imagen oficial)
+# Instalar Composer desde imagen oficial
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # Establecer el directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiar solo los archivos de Composer para aprovechar la caché
-COPY composer.json composer.lock* ./
+# Copiar archivos mínimos para aprovechar caché en instalación
+COPY composer.json composer.lock* package*.json* ./
+
+# Instalar dependencias PHP y JS (en build)
 RUN composer install --no-interaction --prefer-dist || true
+RUN npm install || true && npm run build || true
 
-# ⚠️ No copiamos todo el código aquí porque el volumen ya lo montará
-# COPY . .
-
-# Exponer puerto para el servidor de desarrollo
+# Exponer puerto del servidor Laravel
 EXPOSE 8000
 
-# Comando por defecto (espera a que el contenedor arranque correctamente)
-CMD php artisan serve --host=0.0.0.0 --port=8000
+# Comando por defecto (puede ser sobrescrito por docker-compose)
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
