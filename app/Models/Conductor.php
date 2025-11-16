@@ -30,35 +30,70 @@ class Conductor extends Model
         'activo' => 'boolean',
     ];
 
-    /**
-     * Scope para conductores activos
-     */
-    public function scopeActivo($query)
+    // ============================
+    // RELACIONES
+    // ============================
+
+    // Asignaciones en las que participa
+    public function asignaciones()
+    {
+        return $this->hasMany(AsignacionVehiculo::class, 'id_conductor');
+    }
+
+    // Jornadas laborales del conductor
+    public function jornadas()
+    {
+        return $this->hasMany(Jornada::class, 'id_conductor');
+    }
+
+    // Abastecimientos reportados por el conductor
+    public function abastecimientos()
+    {
+        return $this->hasMany(Abastecimiento::class, 'id_conductor');
+    }
+
+    // Tracking GPS
+    public function trackingPoints()
+    {
+        return $this->hasMany(TrackingPoint::class, 'id_conductor');
+    }
+
+    // ============================
+    // SCOPES ÚTILES
+    // ============================
+
+    // Conductores disponibles para una asignación
+    public function scopeDisponibles($query)
+    {
+        return $query->where('estado_disponibilidad', 'DISPONIBLE')
+                     ->where('activo', true);
+    }
+
+    // Conductores activos en el sistema
+    public function scopeActivos($query)
     {
         return $query->where('activo', true);
     }
 
-    /**
-     * Scope para conductores disponibles
-     */
-    public function scopeDisponible($query)
+    // Conductores con licencia vigente
+    public function scopeLicenciaVigente($query)
     {
-        return $query->where('estado_disponibilidad', 'DISPONIBLE')->activo();
+        return $query->whereDate('licencia_vencimiento', '>=', today());
     }
 
-    /**
-     * Verificar si la licencia está vencida
-     */
-    public function getLicenciaVencidaAttribute(): bool
+    // ============================
+    // MÉTODOS ÚTILES
+    // ============================
+
+    // Verifica si puede recibir asignación
+    public function estaDisponible()
     {
-        return $this->licencia_vencimiento && $this->licencia_vencimiento->isPast();
+        return $this->estado_disponibilidad === 'DISPONIBLE' && $this->activo;
     }
 
-    /**
-     * Verificar si tiene credenciales de app
-     */
-    public function getTieneAppAttribute(): bool
+    // Define si es usuario externo (registrado por solicitud)
+    public function esExterno()
     {
-        return !empty($this->username_app) && !empty($this->password_hash);
+        return empty($this->username_app) && empty($this->password_hash);
     }
 }

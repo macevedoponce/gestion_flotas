@@ -10,15 +10,21 @@ class TipoCombustible extends Model
     use HasFactory;
 
     protected $table = 'tipos_combustible';
+
     protected $primaryKey = 'id_tipo_combustible';
+
+    public $timestamps = true;
 
     protected $fillable = [
         'nombre',
-        'descripcion',
     ];
+
+    // ============================
+    // RELACIONES
+    // ============================
 
     public function vehiculos()
     {
-        return $this->hasMany(Vehiculo::class, 'id_tipo_combustible', 'id_tipo_combustible');
+        return $this->hasMany(Vehiculo::class, 'tipo_combustible_id');
     }
 }

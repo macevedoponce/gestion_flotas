@@ -39,4 +39,49 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // Responsable de proyectos
+    public function proyectosResponsable()
+    {
+        return $this->hasMany(Proyecto::class, 'responsable_id');
+    }
+
+    // Solicitudes creadas por el usuario
+    public function solicitudes()
+    {
+        return $this->hasMany(SolicitudVehiculo::class, 'id_usuario_solicitante');
+    }
+
+    // Asignaciones en las que actuó como jefe de control
+    public function asignacionesControl()
+    {
+        return $this->hasMany(AsignacionVehiculo::class, 'id_jefe_control');
+    }
+
+    // Devoluciones solicitadas por el usuario
+    public function devolucionesSolicitadas()
+    {
+        return $this->hasMany(SolicitudDevolucion::class, 'id_usuario_solicitante');
+    }
+
+    // Devoluciones validadas por el usuario
+    public function devolucionesValidadas()
+    {
+        return $this->hasMany(SolicitudDevolucion::class, 'validado_por');
+    }
+
+    // Abastecimientos validados por él
+    public function abastecimientosValidados()
+    {
+        return $this->hasMany(Abastecimiento::class, 'verificado_por');
+    }
+
+    // ============================
+    // SCOPES ÚTILES
+    // ============================
+
+    public function scopeActivos($query)
+    {
+        return $query->where('activo', true);
+    }
 }

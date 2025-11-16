@@ -4,151 +4,364 @@ namespace App\Filament\Resources\SolicitudVehiculoResource\Pages;
 
 use App\Filament\Resources\SolicitudVehiculoResource;
 use App\Models\AsignacionVehiculo;
-use App\Models\SolicitudDevolucion;
 use App\Models\Conductor;
+use App\Models\SolicitudDevolucion;
 use App\Models\Vehiculo;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Forms;
+use Filament\Forms\Form;
+use Filament\Forms\Components\Tabs;
 use Filament\Notifications\Notification;
-use Filament\Actions\Action;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+use Filament\Resources\Pages\EditRecord;
 
 class EditSolicitudVehiculo extends EditRecord
 {
     protected static string $resource = SolicitudVehiculoResource::class;
 
-    protected function getFormActions(): array
+    /**
+     * FORMULARIO PRINCIPAL (TABS)
+     */
+    public function form(Form $form): Form
     {
-        $actions = [];
+        return $form->schema([
 
-        // Asignar (Control/Monitoreo o Super Admin) cuando está PENDIENTE
-        if ($this->record->estado === 'PENDIENTE' && Auth::user()->hasAnyRole(['Jefe de Control y Monitoreo','Super Admin'])) {
-            $actions[] = Action::make('asignar')
-                ->label('Asignar vehículo')
-                ->icon('heroicon-m-clipboard-check')
-                ->action(function () {
-                    $state = $this->form->getState();
-                    $data  = $state['asignacion'] ?? null;
+            Tabs::make('SolicitudProcesoTabs')
+                ->tabs([
 
-                    if (!$data || empty($data['id_vehiculo'])) {
-                        Notification::make()->title('Selecciona un vehículo disponible.')->danger()->send();
-                        return;
-                    }
+                    Tabs\Tab::make('Solicitud')
+                        ->icon('heroicon-o-clipboard-document-list')
+                        ->schema(
+                            SolicitudVehiculoResource::formSchemaSolicitud()
+                        ),
 
-                    DB::transaction(function () use ($data) {
-                        // Crear (o reutilizar) conductor externo si NO requiere conductor interno
-                        if (!$this->record->requiere_conductor && $this->record->conductor_externo_dni) {
-                            $externo = Conductor::firstOrCreate(
-                                ['documento_identidad' => $this->record->conductor_externo_dni],
-                                [
-                                    'nombre_completo'       => $this->record->conductor_externo_nombres,
-                                    'celular'               => $this->record->conductor_externo_celular,
-                                    'licencia_numero'       => $this->record->conductor_externo_licencia,
-                                    'estado_disponibilidad' => 'OCUPADO',
-                                    'activo'                => true,
-                                ]
-                            );
-                            if (empty($data['id_conductor'])) {
-                                $data['id_conductor'] = $externo->id_conductor;
-                            }
-                        }
+                    Tabs\Tab::make('Asignación')
+                        ->icon('heroicon-o-truck')
+                        ->schema($this->getAsignacionSchema())
+                        ->visible(fn ($record) =>
+                            in_array($record?->estado, ['PENDIENTE', 'ASIGNADO'])
+                        ),
 
-                        // Crear asignación
-                        $asignacion = AsignacionVehiculo::create([
-                            'id_solicitud'    => $this->record->id_solicitud,
-                            'id_proyecto'     => $this->record->id_proyecto,
-                            'id_vehiculo'     => $data['id_vehiculo'] ?? null,
-                            'id_conductor'    => $data['id_conductor'] ?? null,
-                            'id_jefe_control' => Auth::id(),
-                            'estado'          => 'ACTIVA',
-                            'observaciones'   => $data['observaciones'] ?? null,
-                        ]);
+                    Tabs\Tab::make('Devolución')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->schema($this->getDevolucionSchema())
+                        ->visible(fn ($record) =>
+                            in_array($record?->estado, ['ASIGNADO', 'APROBADO'])
+                        ),
 
-                        // Marcar disponibilidad
-                        if ($asignacion->id_vehiculo) {
-                            Vehiculo::where('id_vehiculo', $asignacion->id_vehiculo)->update(['estado' => 'OCUPADO']);
-                        }
-                        if ($asignacion->id_conductor) {
-                            Conductor::where('id_conductor', $asignacion->id_conductor)->update(['estado_disponibilidad' => 'OCUPADO']);
-                        }
+                    Tabs\Tab::make('Revisión')
+                        ->icon('heroicon-o-check-badge')
+                        ->schema($this->getRevisionSchema())
+                        ->visible(fn ($record) =>
+                            in_array($record?->estado, [
+                                'DEVOLUCION_SOLICITADA',
+                                'RECHAZO_DEVOLUCION',
+                                'FINALIZADO'
+                            ])
+                        ),
 
-                        // Cambiar estado
-                        $this->record->update(['estado' => 'ASIGNADA']);
-                    });
+                ])
+                ->columnSpanFull()
+        ]);
+    }
 
-                    Notification::make()->title('Vehículo asignado.')->success()->send();
-                    $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
-                });
+    // =============================================================
+    // =============== TAB 2 — ESQUEMA PARA ASIGNACIÓN =============
+    // =============================================================
+    protected function getAsignacionSchema(): array
+    {
+        return [
+
+            Forms\Components\Section::make('Asignación de Vehículo')
+                ->description('Asignar vehículo y conductor disponibles.')
+                ->schema([
+
+                    Forms\Components\Select::make('asignacion.id_vehiculo')
+                        ->label('Vehículo disponible')
+                        ->required()
+                        ->options(function () {
+                            $record = $this->record;
+
+                            return Vehiculo::query()
+                                ->where('estado', 'DISPONIBLE')
+                                ->where('id_tipo_vehiculo', $record->id_tipo_vehiculo)
+                                ->orderBy('placa')
+                                ->pluck('placa', 'id_vehiculo');
+                        })
+                        ->searchable()
+                        ->helperText('Solo vehículos DISPONIBLES del tipo solicitado.'),
+
+                    Forms\Components\Select::make('asignacion.id_conductor')
+                        ->label('Conductor')
+                        ->required()
+                        ->options(function () {
+                            return Conductor::where('estado_disponibilidad', 'DISPONIBLE')
+                                ->orderBy('nombre_completo')
+                                ->pluck('nombre_completo', 'id_conductor');
+                        })
+                        ->visible(fn () => $this->record->requiere_conductor),
+
+                    Forms\Components\Placeholder::make('infoConductorExterno')
+                        ->label('Conductor externo registrado')
+                        ->content(function ($record) {
+                            if ($record->requiere_conductor) return '';
+
+                            return "
+                                <b>{$record->conductor_externo_nombres}</b><br>
+                                DNI: {$record->conductor_externo_dni}<br>
+                                Cel: {$record->conductor_externo_celular}<br>
+                                Licencia: {$record->conductor_externo_licencia}
+                            ";
+                        })
+                        ->visible(fn () => !$this->record->requiere_conductor),
+
+                    Forms\Components\Textarea::make('asignacion.observaciones')
+                        ->label('Observaciones'),
+                ]),
+
+            Forms\Components\Actions::make([
+                Forms\Components\Actions\Action::make('asignarVehiculo')
+                    ->label('Asignar vehículo')
+                    ->icon('heroicon-o-check')
+                    ->color('primary')
+                    ->action(fn () => $this->procesarAsignacion()),
+            ])
+        ];
+    }
+
+    // =============================================================
+    // =============== PROCESO DE ASIGNACIÓN ======================
+    // =============================================================
+    private function procesarAsignacion()
+    {
+        $record = $this->record;
+        $data = $this->form->getState()['asignacion'] ?? null;
+
+        if (!$data) {
+            Notification::make()
+                ->title('Debes completar la información de asignación.')
+                ->danger()
+                ->send();
+            return;
         }
 
-        // Solicitar devolución (Jefe de Proyecto, Control, Admin) cuando está ASIGNADA
-        if ($this->record->estado === 'ASIGNADA' && Auth::user()->hasAnyRole(['Jefe de Proyecto','Super Admin','Jefe de Control y Monitoreo'])) {
-            $actions[] = Action::make('solicitarDevolucion')
-                ->label('Solicitar devolución')
-                ->icon('heroicon-m-arrow-uturn-left')
-                ->action(function () {
-                    $state = $this->form->getState();
-                    $dev   = $state['devolucion'] ?? [];
+        // Si NO requiere conductor → crear uno externo
+        if (!$record->requiere_conductor) {
 
-                    $asignacion = $this->record->asignacion;
-                    if (!$asignacion) {
-                        Notification::make()->title('No existe asignación para esta solicitud.')->danger()->send();
-                        return;
-                    }
+            $conductor = Conductor::create([
+                'nombre_completo' => $record->conductor_externo_nombres,
+                'documento_identidad' => $record->conductor_externo_dni,
+                'celular' => $record->conductor_externo_celular,
+                'licencia_numero' => $record->conductor_externo_licencia,
+                'estado_disponibilidad' => 'DISPONIBLE',
+            ]);
 
-                    SolicitudDevolucion::create([
-                        'id_asignacion'          => $asignacion->id_asignacion,
-                        'id_usuario_solicitante' => Auth::id(),
-                        'fotos_evidencia'        => $dev['fotos_evidencia'] ?? [],
-                        'videos_evidencia'       => $dev['videos_evidencia'] ?? [],
-                        'ubicacion_text'         => $dev['ubicacion_text'] ?? null,
-                        'observaciones'          => $dev['observaciones'] ?? null,
-                        'estado'                 => 'PENDIENTE',
-                    ]);
-
-                    $this->record->update(['estado' => 'EN DEVOLUCIÓN']);
-
-                    Notification::make()->title('Solicitud de devolución enviada.')->success()->send();
-                    $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
-                });
+            $data['id_conductor'] = $conductor->id_conductor;
         }
 
-        // Validar devolución (Control/Asistente/Admin) cuando está EN DEVOLUCIÓN
-        if ($this->record->estado === 'EN DEVOLUCIÓN' && Auth::user()->hasAnyRole(['Jefe de Control y Monitoreo','Asistente Control y Monitoreo','Super Admin'])) {
-            $actions[] = Action::make('validarDevolucion')
-                ->label('Validar devolución')
-                ->color('success')
-                ->icon('heroicon-m-check-badge')
-                ->requiresConfirmation()
-                ->action(function () {
-                    DB::transaction(function () {
-                        $asignacion = $this->record->asignacion;
+        // Crear asignación
+        AsignacionVehiculo::create([
+            'id_solicitud' => $record->id_solicitud,
+            'id_proyecto' => $record->id_proyecto,
+            'id_vehiculo' => $data['id_vehiculo'],
+            'id_conductor' => $data['id_conductor'],
+            'id_jefe_control' => auth()->id(),
+            'observaciones' => $data['observaciones'] ?? null,
+        ]);
 
-                        if ($asignacion) {
-                            $asignacion->update([
-                                'estado' => 'FINALIZADA',
-                                'fecha_finalizacion' => now(),
-                            ]);
+        // Cambiar estados
+        $record->update(['estado' => 'ASIGNADO']);
 
-                            if ($asignacion->id_vehiculo) {
-                                Vehiculo::where('id_vehiculo', $asignacion->id_vehiculo)->update(['estado' => 'DISPONIBLE']);
-                            }
-                            if ($asignacion->id_conductor) {
-                                Conductor::where('id_conductor', $asignacion->id_conductor)->update(['estado_disponibilidad' => 'DISPONIBLE']);
-                            }
-                        }
+        Vehiculo::where('id_vehiculo', $data['id_vehiculo'])
+            ->update(['estado' => 'ASIGNADO']);
 
-                        $this->record->update(['estado' => 'FINALIZADA']);
-                    });
+        Conductor::where('id_conductor', $data['id_conductor'])
+            ->update(['estado_disponibilidad' => 'OCUPADO']);
 
-                    Notification::make()->title('Devolución validada. Proceso finalizado.')->success()->send();
-                    $this->redirect($this->getResource()::getUrl('edit', ['record' => $this->record]));
-                });
+        Notification::make()
+            ->title('Vehículo asignado correctamente.')
+            ->success()
+            ->send();
+    }
+
+    // =============================================================
+    // =============== TAB 3 — DEVOLUCIÓN ==========================
+    // =============================================================
+    protected function getDevolucionSchema(): array
+    {
+        return [
+
+            Forms\Components\Section::make('Solicitud de Devolución')
+                ->description('Subir evidencias y registrar entrega.')
+                ->schema([
+
+                    Forms\Components\FileUpload::make('devolucion.fotos_evidencia')
+                        ->label('Fotos')
+                        ->multiple()
+                        ->image()
+                        ->directory('devoluciones/fotos'),
+
+                    Forms\Components\FileUpload::make('devolucion.videos_evidencia')
+                        ->label('Videos')
+                        ->multiple()
+                        ->directory('devoluciones/videos'),
+
+                    Forms\Components\TextInput::make('devolucion.ubicacion_text')
+                        ->label('Ubicación'),
+
+                    Forms\Components\Textarea::make('devolucion.observaciones')
+                        ->label('Observaciones'),
+                ]),
+
+            Forms\Components\Actions::make([
+                Forms\Components\Actions\Action::make('solicitarDevolucion')
+                    ->label('Enviar solicitud de devolución')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->action(fn () => $this->procesarDevolucion()),
+            ])
+        ];
+    }
+
+    private function procesarDevolucion()
+    {
+        $record = $this->record;
+        $data = $this->form->getState()['devolucion'] ?? null;
+
+        if (!$data) {
+            Notification::make()
+                ->title('Debes completar los datos de devolución.')
+                ->danger()
+                ->send();
+            return;
         }
 
-        // Guardar normal
-        $actions[] = $this->getSaveFormAction();
+        SolicitudDevolucion::create([
+            'id_asignacion' => $record->asignacion?->id_asignacion,
+            'id_usuario_solicitante' => auth()->id(),
+            'fotos_evidencia' => $data['fotos_evidencia'] ?? [],
+            'videos_evidencia' => $data['videos_evidencia'] ?? [],
+            'ubicacion_text' => $data['ubicacion_text'] ?? null,
+            'observaciones' => $data['observaciones'] ?? null,
+        ]);
 
-        return $actions;
+        $record->update(['estado' => 'DEVOLUCION_SOLICITADA']);
+
+        Notification::make()
+            ->title('Solicitud de devolución enviada.')
+            ->success()
+            ->send();
+    }
+
+    // =============================================================
+    // =============== TAB 4 — REVISIÓN ============================
+    // =============================================================
+    protected function getRevisionSchema(): array
+    {
+        return [
+
+            Forms\Components\Section::make('Revisión de Devolución')
+                ->description('Validación final por Control y Monitoreo.')
+                ->schema([
+
+                    Forms\Components\Placeholder::make('fotos')
+                        ->label('Fotos enviadas')
+                        ->content(fn ($record) =>
+                            json_encode($record->devolucion?->fotos_evidencia ?? [])
+                        ),
+
+                    Forms\Components\Placeholder::make('videos')
+                        ->label('Videos enviados')
+                        ->content(fn ($record) =>
+                            json_encode($record->devolucion?->videos_evidencia ?? [])
+                        ),
+
+                    Forms\Components\Textarea::make('revision.comentarios_revision')
+                        ->label('Comentarios del revisor')
+                        ->rows(3)
+                        ->visible(fn ($record) =>
+                            in_array($record->estado, ['DEVOLUCION_SOLICITADA'])
+                        ),
+
+                    Forms\Components\Select::make('revision.accion')
+                        ->label('Acción')
+                        ->options([
+                            'APROBAR' => 'Aprobar devolución',
+                            'RECHAZAR' => 'Rechazar devolución',
+                        ])
+                        ->required()
+                        ->visible(fn ($record) =>
+                            $record->estado === 'DEVOLUCION_SOLICITADA'
+                        ),
+                ]),
+
+            Forms\Components\Actions::make([
+                Forms\Components\Actions\Action::make('procesarRevision')
+                    ->label('Registrar revisión')
+                    ->icon('heroicon-o-check-badge')
+                    ->color('success')
+                    ->visible(fn () =>
+                        $this->record->estado === 'DEVOLUCION_SOLICITADA'
+                    )
+                    ->action(fn () => $this->procesarRevision()),
+            ])
+        ];
+    }
+
+    private function procesarRevision()
+    {
+        $record = $this->record;
+        $rev = $this->form->getState()['revision'] ?? null;
+
+        if (!$rev) {
+            Notification::make()->title('Faltan datos')->danger()->send();
+            return;
+        }
+
+        $devolucion = $record->devolucion;
+
+        $devolucion->update([
+            'comentarios_revision' => $rev['comentarios_revision'] ?? null,
+            'validado_por' => auth()->id(),
+            'fecha_revision' => now(),
+        ]);
+
+        // ===========================================
+        // RECHAZO
+        // ===========================================
+        if ($rev['accion'] === 'RECHAZAR') {
+            $record->update(['estado' => 'RECHAZO_DEVOLUCION']);
+
+            Notification::make()
+                ->title('Devolución rechazada.')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // ===========================================
+        // APROBACIÓN FINAL
+        // ===========================================
+        if ($rev['accion'] === 'APROBAR') {
+
+            // Liberar vehículo
+            Vehiculo::where('id_vehiculo', $record->asignacion->id_vehiculo)
+                ->update(['estado' => 'DISPONIBLE']);
+
+            // Liberar conductor
+            Conductor::where('id_conductor', $record->asignacion->id_conductor)
+                ->update(['estado_disponibilidad' => 'DISPONIBLE']);
+
+            // Finalizar asignación
+            $record->asignacion->update([
+                'estado' => 'FINALIZADA',
+                'fecha_finalizacion' => now()
+            ]);
+
+            $record->update(['estado' => 'FINALIZADO']);
+
+            Notification::make()
+                ->title('Solicitud finalizada correctamente.')
+                ->success()
+                ->send();
+        }
     }
 }

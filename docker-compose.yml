@@ -34,28 +34,31 @@ services:
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
     command: |
-              bash -c "
-              echo '🚀 Preparando entorno Laravel...';
-              if [ ! -f .env ]; then
-                cp .env.example .env;
-              fi;
+      bash -c "
+        echo '🚀 Preparando entorno Laravel...';
 
-              composer install --no-interaction --prefer-dist;
-              npm install;
-              npm run build;
-              php artisan key:generate --force;
-              php artisan migrate --force || true;
+        if [ ! -f .env ]; then
+          cp .env.example .env;
+        fi;
 
-              # Detectar Codespaces y actualizar APP_URL sin puerto
-              if [ -n \"$CODESPACE_NAME\" ]; then
-                export APP_URL=\"https://${CODESPACE_NAME}-8000.app.github.dev\";
-                sed -i '/^APP_URL=/d' .env;
-                echo \"APP_URL=${APP_URL}\" >> .env;
-                echo '🌐 Ejecutando en Codespaces: '${APP_URL};
-              fi;
+        composer install --no-interaction --prefer-dist;
+        npm install;
+        npm run build;
+        php artisan key:generate --force;
+        php artisan migrate --force || true;
 
-              php artisan serve --host=0.0.0.0 --port=8000;
-              "
+        # Detectar Codespaces
+        if [ -n \"$CODESPACE_NAME\" ]; then
+          export APP_URL=\"https://${CODESPACE_NAME}-8000.app.github.dev\";
+          sed -i '/^APP_URL=/d' .env;
+          echo \"APP_URL=${APP_URL}\" >> .env;
+        fi;
+
+        # 🔧 Corrección completa de storage y permisos
+        bash fix-storage.sh;
+
+        php artisan serve --host=0.0.0.0 --port=8000;
+      "
 
 volumes:
   pgdata:

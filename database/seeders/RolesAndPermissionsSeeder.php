@@ -5,92 +5,69 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
-use App\Models\User;
-use Illuminate\Support\Facades\Gate;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
     public function run(): void
     {
-        // 🔄 Limpiar caché de permisos
+        // limpiar cache
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // 🔐 Crear permisos básicos
         $permisos = [
-            'ver usuarios',
-            'crear usuarios',
-            'editar usuarios',
-            'eliminar usuarios',
+            'view solicitudes',
+            'create solicitudes',
+            'update solicitudes',
+            'delete solicitudes',
 
-            'ver roles',
-            'asignar roles',
+            'view asignaciones',
+            'create asignaciones',
+            'update asignaciones',
+            'delete asignaciones',
 
-            'ver solicitudes',
-            'aprobar solicitudes',
-
-            'ver asignaciones',
-            'crear asignaciones',
-
-            'ver devoluciones',
-            'validar devoluciones',
+            'view devoluciones',
+            'create devoluciones',
+            'update devoluciones',
+            'delete devoluciones',
         ];
 
         foreach ($permisos as $permiso) {
             Permission::firstOrCreate(['name' => $permiso]);
         }
 
-        // 👔 Crear roles
-        $roles = [
-            'Super Admin',
-            'Jefe de Proyecto',
-            'Jefe de Control y Monitoreo',
-            'Conductor',
-        ];
+        // Crear roles
+        $superAdmin = Role::firstOrCreate(['name' => 'Super Admin']);
+        $jefeProyecto = Role::firstOrCreate(['name' => 'Jefe de Proyecto']);
+        $jefeControl = Role::firstOrCreate(['name' => 'Jefe de Control y Monitoreo']);
+        $asistenteControl = Role::firstOrCreate(['name' => 'Asistente de Control y Monitoreo']);
 
-        foreach ($roles as $rol) {
-            Role::firstOrCreate(['name' => $rol]);
-        }
+        // Asignar permisos por rol
+        $superAdmin->givePermissionTo(Permission::all());
 
-        // 🚀 Dar TODOS los permisos al Super Admin
-        $superAdmin = Role::where('name', 'Super Admin')->first();
-        if ($superAdmin) {
-            $superAdmin->syncPermissions(Permission::all());
-        }
-
-        // 🎯 Asignar permisos específicos a otros roles
-        Role::where('name', 'Jefe de Proyecto')->first()?->givePermissionTo([
-            'ver solicitudes',
-            'crear asignaciones',
-            'ver devoluciones',
+        $jefeProyecto->givePermissionTo([
+            'view solicitudes',
+            'create solicitudes',
+            'update solicitudes',
+            'delete solicitudes',
+            'view devoluciones',
+            'create devoluciones',
         ]);
 
-        Role::where('name', 'Jefe de Control y Monitoreo')->first()?->givePermissionTo([
-            'ver solicitudes',
-            'aprobar solicitudes',
-            'ver asignaciones',
-            'crear asignaciones',
-            'validar devoluciones',
+        $jefeControl->givePermissionTo([
+            'view solicitudes',
+            'create solicitudes',
+            'update solicitudes',
+            'view asignaciones',
+            'create asignaciones',
+            'update asignaciones',
+            'view devoluciones',
+            'update devoluciones',
         ]);
 
-        Role::where('name', 'Conductor')->first()?->givePermissionTo([]);
-
-        // 👤 Asignar roles a los primeros usuarios existentes
-        $usuarios = User::all();
-
-        if ($usuarios->count() >= 3) {
-            $usuarios[0]->assignRole('Super Admin');
-            $usuarios[1]->assignRole('Jefe de Proyecto');
-            $usuarios[2]->assignRole('Jefe de Control y Monitoreo');
-        } elseif ($usuarios->count() > 0) {
-            $usuarios->first()->assignRole('Super Admin');
-        }
-
-        // 🧠 OPCIONAL: Gate global (Super Admin todo poderoso)
-        // 👉 Activa esto en AuthServiceProvider (NO AQUÍ)
-        // Gate::before(function ($user, $ability) {
-        //     if ($user->hasRole('Super Admin')) {
-        //         return true;
-        //     }
-        // });
+        $asistenteControl->givePermissionTo([
+            'view solicitudes',
+            'view asignaciones',
+            'view devoluciones',
+            'update devoluciones',
+        ]);
     }
 }

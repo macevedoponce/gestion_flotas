@@ -6,323 +6,218 @@ use App\Filament\Resources\SolicitudVehiculoResource\Pages;
 use App\Models\SolicitudVehiculo;
 use App\Models\Proyecto;
 use App\Models\TipoVehiculo;
-use App\Models\Vehiculo;
-use App\Models\Conductor;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Forms\Components\Tabs;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
-use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Carbon;
+use Filament\Forms\Get;
 
 class SolicitudVehiculoResource extends Resource
 {
     protected static ?string $model = SolicitudVehiculo::class;
-    protected static ?string $navigationIcon = 'heroicon-o-truck';
-    protected static ?string $navigationGroup = 'Proyectos y Solicitudes';
-    protected static ?string $pluralLabel = 'Solicitudes de Vehículo';
+
+    protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+    protected static ?string $navigationGroup = 'Gestión Vehicular';
     protected static ?string $label = 'Solicitud de Vehículo';
-    protected static ?string $slug = 'solicitudes-vehiculos';
-    protected static ?string $recordTitleAttribute = 'id_solicitud';
+    protected static ?string $pluralLabel = 'Solicitudes de Vehículo';
 
     public static function form(Form $form): Form
     {
-        return $form->schema([
-            Tabs::make('flujo')
-                ->tabs([
-                    // 🟦 Solicitud (editable solo si estado = PENDIENTE)
-                    Tabs\Tab::make('Solicitud')
-                        ->icon('heroicon-m-clipboard-document')
-                        ->schema([
-                            Forms\Components\Section::make('Información General')
-                                ->schema([
-                                    Forms\Components\Select::make('id_proyecto')
-                                        ->label('Proyecto')
-                                        ->options(fn () =>
-                                            Proyecto::query()
-                                                ->when(Auth::user()?->hasRole('Jefe de Proyecto'), fn($q) => $q->where('encargado_id', Auth::id()))
-                                                ->orderBy('proyecto')
-                                                ->pluck('proyecto', 'id_proyecto')
-                                        )
-                                        ->searchable()
-                                        ->preload()
-                                        ->required()
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
+        return $form->schema(static::formSchemaSolicitud());
+    }
 
-                                    // Chips / botones para tipos de vehículo (selección única)
-                                    Forms\Components\ToggleButtons::make('id_tipo_vehiculo')
-                                        ->label('Tipo de Vehículo')
-                                        ->options(fn () => TipoVehiculo::query()->orderBy('nombre')->pluck('nombre', 'id_tipo')->toArray())
-                                        ->inline()
-                                        ->required()
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
+    public static function formSchemaSolicitud(): array
+    {
+        return [
 
-                                    Forms\Components\Textarea::make('motivo_trabajo')
-                                        ->label('Motivo del Trabajo')
-                                        ->rows(2)
-                                        ->columnSpanFull()
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
+            Forms\Components\Section::make('Datos de la Solicitud')
+                ->description('Complete la información necesaria para solicitar un vehículo.')
+                ->schema([
 
-                                    Forms\Components\TextInput::make('lugar_trabajo')
-                                        ->label('Lugar de Trabajo')
-                                        ->required()
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
-                                ])
-                                ->columns(2),
+                    Forms\Components\Select::make('id_usuario_solicitante')
+                        ->label('Solicitante')
+                        ->relationship('solicitante', 'name')
+                        ->default(fn () => auth()->id())
+                        ->disabled(fn ($record) => $record !== null)
+                        ->required(),
 
-                            Forms\Components\Section::make('Periodo de Uso')
-                                ->schema([
-                                    Forms\Components\Toggle::make('indeterminado')
-                                        ->label('Periodo indeterminado')
-                                        ->reactive()
-                                        ->afterStateUpdated(function ($state, callable $set) {
-                                            if ($state) {
-                                                $set('fecha_fin', null);
-                                                $set('cantidad_dias', null);
-                                            }
-                                        })
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
+                    Forms\Components\Select::make('id_proyecto')
+                        ->label('Proyecto')
+                        ->options(function () {
+                            $user = auth()->user();
 
-                                    Forms\Components\DatePicker::make('fecha_inicio')
-                                        ->label('Fecha Inicio')
-                                        ->minDate(now())
-                                        ->reactive()
-                                        ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
-                                            if ($state && !$get('indeterminado')) {
-                                                self::calcularFechaFin($state, $get('cantidad_dias'), $set);
-                                            }
-                                        })
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
+                            return Proyecto::query()
+                                ->when(
+                                    !$user->hasRole('Super Admin'),
+                                    fn ($q) => $q->where('responsable_id', $user->id)
+                                )
+                                ->pluck('descripcion', 'id_proyecto');
+                        })
+                        ->searchable()
+                        ->required(),
 
-                                    Forms\Components\Group::make()
-                                        ->schema([
-                                            Forms\Components\TextInput::make('cantidad_dias')
-                                                ->numeric()
-                                                ->label('Cantidad de Días')
-                                                ->minValue(1)
-                                                ->reactive()
-                                                ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
-                                                    if (!$get('indeterminado') && $get('fecha_inicio')) {
-                                                        self::calcularFechaFin($get('fecha_inicio'), $state, $set);
-                                                    }
-                                                }),
-
-                                            Forms\Components\DatePicker::make('fecha_fin')
-                                                ->label('Fecha Fin')
-                                                ->minDate(fn (Forms\Get $get) => $get('fecha_inicio') ?: now())
-                                                ->disabled(fn (Forms\Get $get) => $get('indeterminado'))
-                                                ->reactive()
-                                                ->afterStateUpdated(function ($state, callable $set, Forms\Get $get) {
-                                                    if (!$get('indeterminado') && $get('fecha_inicio') && $state) {
-                                                        self::calcularCantidadDias($get('fecha_inicio'), $state, $set);
-                                                    }
-                                                }),
-                                        ])
-                                        ->hidden(fn (Forms\Get $get) => $get('indeterminado'))
-                                        ->columns(2),
-                                ])
-                                ->columns(2),
-
-                            Forms\Components\Section::make('Información del Conductor')
-                                ->schema([
-                                    Forms\Components\Toggle::make('requiere_conductor')
-                                        ->label('¿La empresa proveerá conductor?')
-                                        ->default(true)
-                                        ->reactive()
-                                        ->helperText('Si se desactiva, ingresa los datos del conductor externo.')
-                                        ->afterStateUpdated(function ($state, callable $set) {
-                                            if ($state) {
-                                                $set('conductor_externo_nombres', null);
-                                                $set('conductor_externo_dni', null);
-                                                $set('conductor_externo_celular', null);
-                                                $set('conductor_externo_licencia', null);
-                                            }
-                                        })
-                                        ->disabled(fn ($record) => $record && $record->estado !== 'PENDIENTE'),
-
-                                    Forms\Components\Fieldset::make('Conductor Externo')
-                                        ->schema([
-                                            Forms\Components\TextInput::make('conductor_externo_nombres')
-                                                ->label('Nombres')
-                                                ->required(fn (Forms\Get $get) => !$get('requiere_conductor')),
-                                            Forms\Components\TextInput::make('conductor_externo_dni')
-                                                ->label('DNI')
-                                                ->maxLength(12)
-                                                ->required(fn (Forms\Get $get) => !$get('requiere_conductor')),
-                                            Forms\Components\TextInput::make('conductor_externo_celular')
-                                                ->label('Celular'),
-                                            Forms\Components\TextInput::make('conductor_externo_licencia')
-                                                ->label('Licencia'),
-                                        ])
-                                        ->columns(2)
-                                        ->visible(fn (Forms\Get $get) => !$get('requiere_conductor')),
-                                ]),
-                        ]),
-
-                    // 🟧 Asignación (solo Control/Monitoreo & Super Admin; estado PENDIENTE)
-                    Tabs\Tab::make('Asignación')
-                        ->icon('heroicon-m-clipboard-check')
-                        ->visible(fn ($record) =>
-                            $record
-                            && $record->estado === 'PENDIENTE'
-                            && Auth::user()->hasAnyRole(['Jefe de Control y Monitoreo','Super Admin'])
+                    Forms\Components\Select::make('id_tipo_vehiculo')
+                        ->label('Tipo de Vehículo')
+                        ->options(
+                            TipoVehiculo::orderBy('nombre')->pluck('nombre', 'id_tipo')
                         )
-                        ->schema([
-                            Forms\Components\Group::make()
-                                ->statePath('asignacion')
-                                ->schema([
-                                    Forms\Components\Select::make('id_vehiculo')
-                                        ->label('Vehículo disponible')
-                                        ->options(fn () =>
-                                            Vehiculo::query()
-                                                ->where('estado', 'DISPONIBLE')
-                                                ->orderBy('placa')
-                                                ->pluck('placa', 'id_vehiculo')
-                                        )
-                                        ->searchable()
-                                        ->required(),
+                        ->searchable()
+                        ->required()
+                        ->columnSpan(2),
 
-                                    Forms\Components\Select::make('id_conductor')
-                                        ->label('Conductor interno disponible')
-                                        ->options(fn ($get, $record) =>
-                                            ($record && $record->requiere_conductor)
-                                                ? Conductor::query()
-                                                    ->where('estado_disponibilidad','DISPONIBLE')
-                                                    ->orderBy('nombre_completo')
-                                                    ->pluck('nombre_completo', 'id_conductor')
-                                                : collect()
-                                        )
-                                        ->searchable()
-                                        ->visible(fn ($record) => $record?->requiere_conductor === true),
+                    Forms\Components\Textarea::make('motivo_trabajo')
+                        ->label('Motivo del Trabajo')
+                        ->rows(2),
 
-                                    Forms\Components\Textarea::make('observaciones')
-                                        ->label('Observaciones de asignación')
-                                        ->rows(3),
-                                ]),
-                        ]),
+                    Forms\Components\TextInput::make('lugar_trabajo')
+                        ->label('Lugar de Trabajo')
+                        ->required(),
 
-                    // 🟨 Devolución (Jefe de Proyecto & Super Admin; estado ASIGNADA)
-                    Tabs\Tab::make('Devolución')
-                        ->icon('heroicon-m-arrow-uturn-left')
-                        ->visible(fn ($record) =>
-                            $record
-                            && $record->estado === 'ASIGNADA'
-                            && Auth::user()->hasAnyRole(['Jefe de Proyecto','Super Admin','Jefe de Control y Monitoreo','Asistente Control y Monitoreo'])
-                        )
-                        ->schema([
-                            Forms\Components\Group::make()
-                                ->statePath('devolucion')
-                                ->schema([
-                                    Forms\Components\FileUpload::make('fotos_evidencia')
-                                        ->label('Fotos evidencia')
-                                        ->multiple()
-                                        ->disk('public')
-                                        ->directory('devoluciones/fotos')
-                                        ->acceptedFileTypes(['image/*']),
+                ])->columns(2),
 
-                                    Forms\Components\FileUpload::make('videos_evidencia')
-                                        ->label('Videos evidencia')
-                                        ->multiple()
-                                        ->disk('public')
-                                        ->directory('devoluciones/videos')
-                                        ->acceptedFileTypes(['video/*']),
+            Forms\Components\Section::make('Periodo Solicitado')
+                ->schema([
 
-                                    Forms\Components\TextInput::make('ubicacion_text')
-                                        ->label('Ubicación (texto)')
-                                        ->maxLength(250),
+                    Forms\Components\Toggle::make('indeterminado')
+                        ->label('Periodo Indeterminado')
+                        ->default(false)
+                        ->live(),
 
-                                    Forms\Components\Textarea::make('observaciones')
-                                        ->label('Observaciones')
-                                        ->rows(3),
-                                ]),
-                        ]),
-                ]),
-        ]);
+                    Forms\Components\DatePicker::make('fecha_inicio')
+                        ->label('Fecha Inicio')
+                        ->minDate(today())
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function ($state, callable $set, Get $get) {
+                            if (!$get('indeterminado') && $state && $get('cantidad_dias')) {
+                                $set(
+                                    'fecha_fin',
+                                    Carbon::parse($state)
+                                        ->addDays((int) $get('cantidad_dias'))
+                                        ->format('Y-m-d')
+                                );
+                            }
+                        }),
+
+                    Forms\Components\TextInput::make('cantidad_dias')
+                        ->label('Días')
+                        ->numeric()
+                        ->minValue(1)
+                        ->live()
+                        ->hidden(fn (Get $get) => $get('indeterminado'))
+                        ->afterStateUpdated(function ($state, callable $set, Get $get) {
+                            if (!$get('indeterminado') && $state && $get('fecha_inicio')) {
+                                $set(
+                                    'fecha_fin',
+                                    Carbon::parse($get('fecha_inicio'))
+                                        ->addDays((int) $state)
+                                        ->format('Y-m-d')
+                                );
+                            }
+                        }),
+
+                    Forms\Components\DatePicker::make('fecha_fin')
+                        ->label('Fecha Fin')
+                        ->hidden(fn (Get $get) => $get('indeterminado')),
+
+                ])->columns(2),
+
+            Forms\Components\Section::make('Conductor')
+                ->schema([
+
+                    Forms\Components\Toggle::make('requiere_conductor')
+                        ->label('Empresa proveerá conductor')
+                        ->default(true)
+                        ->live(),
+
+                    Forms\Components\TextInput::make('conductor_externo_nombres')
+                        ->label('Nombres del Conductor Externo')
+                        ->visible(fn (Get $get) => !$get('requiere_conductor')),
+
+                    Forms\Components\TextInput::make('conductor_externo_dni')
+                        ->label('DNI')
+                        ->visible(fn (Get $get) => !$get('requiere_conductor')),
+
+                    Forms\Components\TextInput::make('conductor_externo_celular')
+                        ->label('Celular')
+                        ->visible(fn (Get $get) => !$get('requiere_conductor')),
+
+                    Forms\Components\TextInput::make('conductor_externo_licencia')
+                        ->label('Licencia')
+                        ->visible(fn (Get $get) => !$get('requiere_conductor')),
+
+                ])->columns(2),
+
+            Forms\Components\Hidden::make('estado')
+                ->default('PENDIENTE'),
+        ];
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
+
                 Tables\Columns\TextColumn::make('id_solicitud')
                     ->label('ID')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('proyecto.proyecto')
+                    ->sortable(),
+
+                Tables\Columns\TextColumn::make('proyecto.descripcion')
                     ->label('Proyecto')
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('tipoVehiculo.nombre')
+                    ->searchable()
+                    ->limit(35),
+
+                Tables\Columns\BadgeColumn::make('tipoVehiculo.nombre')
                     ->label('Tipo')
-                    ->toggleable(),
-                Tables\Columns\TextColumn::make('solicitante.name')
-                    ->label('Solicitante')
-                    ->toggleable(),
+                    ->colors(['primary']),
+
                 Tables\Columns\TextColumn::make('fecha_inicio')
                     ->label('Inicio')
-                    ->date('d/m/Y')
-                    ->sortable(),
+                    ->date('d/m/Y'),
+
                 Tables\Columns\TextColumn::make('fecha_fin')
                     ->label('Fin')
-                    ->date('d/m/Y')
                     ->placeholder('Indeterminado')
-                    ->sortable(),
+                    ->date('d/m/Y'),
+
                 Tables\Columns\BadgeColumn::make('estado')
-                    ->label('Estado')
-                    ->color(fn (string $state) => match ($state) {
-                        'PENDIENTE'     => 'warning',
-                        'ASIGNADA'      => 'success',
-                        'EN DEVOLUCIÓN' => 'info',
-                        'FINALIZADA'    => 'danger',
-                        default         => 'gray',
-                    })
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('fecha_solicitud')
-                    ->label('Fecha Solicitud')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable(),
-            ])
-            ->filters([
-                Tables\Filters\SelectFilter::make('estado')
-                    ->options([
-                        'PENDIENTE'     => 'Pendiente',
-                        'ASIGNADA'      => 'Asignada',
-                        'EN DEVOLUCIÓN' => 'En devolución',
-                        'FINALIZADA'    => 'Finalizada',
+                    ->colors([
+                        'warning' => 'PENDIENTE',
+                        'success' => 'ASIGNADO',
+                        'primary' => 'APROBADO',
+                        'danger'  => 'RECHAZADO',
                     ]),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make()
-                    ->visible(fn ($record) => $record->estado === 'PENDIENTE' || Auth::user()->hasRole('Super Admin')),
+                Tables\Actions\Action::make('asignar')
+                    ->label('Asignar')
+                    ->icon('heroicon-o-truck')
+                    ->color('primary')
+                    ->visible(fn ($record) =>
+                        $record->estado === 'PENDIENTE' &&
+                        auth()->user()->hasRole('Jefe de Control y Monitoreo')
+                    )
+                    ->url(fn ($record) => route(
+                        'filament.resources.asignaciones-vehiculos.create',
+                        ['solicitud' => $record->id_solicitud]
+                    )),
             ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListSolicitudVehiculos::route('/'),
+            'index'  => Pages\ListSolicitudVehiculos::route('/'),
             'create' => Pages\CreateSolicitudVehiculo::route('/create'),
-            'edit' => Pages\EditSolicitudVehiculo::route('/{record}/edit'),
+            'edit'   => Pages\EditSolicitudVehiculo::route('/{record}/edit'),
         ];
-    }
-
-    /* Utilidades de fecha (reactivas) */
-    private static function calcularFechaFin(?string $inicio, ?int $dias, callable $set): void
-    {
-        if ($inicio && $dias) {
-            $fin = Carbon::parse($inicio)->addDays($dias);
-            $set('fecha_fin', $fin->format('Y-m-d'));
-        }
-    }
-
-    private static function calcularCantidadDias(?string $inicio, ?string $fin, callable $set): void
-    {
-        if ($inicio && $fin) {
-            $set('cantidad_dias', Carbon::parse($inicio)->diffInDays(Carbon::parse($fin)));
-        }
     }
 }

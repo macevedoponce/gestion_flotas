@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vehiculo extends Model
 {
@@ -26,78 +25,86 @@ class Vehiculo extends Model
         'vencimiento_citv',
         'tipo_combustible_id',
         'km_actual',
-        'ubicacion_actual',
         'estado',
         'propio',
         'foto_soat',
         'foto_citv',
         'foto_tarjeta_propiedad',
-        'activo',
+        'ubicacion_actual', // geography(Point,4326)
+        'activo'
     ];
 
     protected $casts = [
-        'anio' => 'integer',
         'vencimiento_soat' => 'date',
         'vencimiento_citv' => 'date',
         'km_actual' => 'decimal:2',
         'propio' => 'boolean',
         'activo' => 'boolean',
-        'fecha_creacion' => 'datetime',
+        // Mantiene el raw de geographic, la app utilizará WKT/GeoJSON
+        'ubicacion_actual' => 'string',
     ];
 
-    /**
-     * Relación con el tipo de vehículo
-     */
-    public function tipoVehiculo(): BelongsTo
+    // ============================
+    // RELACIONES
+    // ============================
+
+    // Tipo de vehículo (camioneta, auto, cisterna, etc.)
+    public function tipoVehiculo()
     {
-        return $this->belongsTo(TipoVehiculo::class, 'id_tipo_vehiculo', 'id_tipo');
+        return $this->belongsTo(TipoVehiculo::class, 'id_tipo_vehiculo');
     }
 
-    /**
-     * Relación con el tipo de combustible
-     */
-    public function tipoCombustible(): BelongsTo
+    // Combustible (gasolina, diesel, glp...)
+    public function tipoCombustible()
     {
-        return $this->belongsTo(TipoCombustible::class, 'tipo_combustible_id', 'id_tipo_combustible');
+        return $this->belongsTo(TipoCombustible::class, 'tipo_combustible_id');
     }
 
-    /**
-     * Scope para vehículos activos
-     */
-    public function scopeActivo($query)
+    // Asignaciones del vehículo
+    public function asignaciones()
+    {
+        return $this->hasMany(AsignacionVehiculo::class, 'id_vehiculo');
+    }
+
+    // Última asignación activa
+    public function asignacionActiva()
+    {
+        return $this->hasOne(AsignacionVehiculo::class, 'id_vehiculo')
+            ->where('estado', 'ACTIVA');
+    }
+
+    // Jornadas (movimientos diarios)
+    public function jornadas()
+    {
+        return $this->hasManyThrough(
+            Jornada::class,
+            AsignacionVehiculo::class,
+            'id_vehiculo',
+            'id_asignacion',
+            'id_vehiculo',
+            'id_asignacion'
+        );
+    }
+
+    // ============================
+    // SCOPES ÚTILES
+    // ============================
+
+    // Vehículos disponibles para asignación
+    public function scopeDisponibles($query)
+    {
+        return $query->where('estado', 'DISPONIBLE')->where('activo', true);
+    }
+
+    // Solo activos
+    public function scopeActivos($query)
     {
         return $query->where('activo', true);
     }
 
-    /**
-     * Scope para vehículos disponibles
-     */
-    public function scopeDisponible($query)
+    // Filtrar por tipo de vehículo
+    public function scopeTipo($query, $tipoId)
     {
-        return $query->where('estado', 'DISPONIBLE')->activo();
-    }
-
-    /**
-     * Scope para vehículos propios
-     */
-    public function scopePropio($query)
-    {
-        return $query->where('propio', true);
-    }
-
-    /**
-     * Verificar si el SOAT está vencido
-     */
-    public function getSoatVencidoAttribute(): bool
-    {
-        return $this->vencimiento_soat && $this->vencimiento_soat->isPast();
-    }
-
-    /**
-     * Verificar si el CITV está vencido
-     */
-    public function getCitvVencidoAttribute(): bool
-    {
-        return $this->vencimiento_citv && $this->vencimiento_citv->isPast();
+        return $query->where('id_tipo_vehiculo', $tipoId);
     }
 }

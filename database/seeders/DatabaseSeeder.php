@@ -9,28 +9,26 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            RoleSeeder::class,
+            // 1) Spatie roles y permisos
+            RolesAndPermissionsSeeder::class,
+
+            // 2) Usuarios del sistema
             UserSeeder::class,
-            ConductoresTableSeeder::class,
-            TiposVehiculoTableSeeder::class,
-            TiposCombustibleTableSeeder::class,
-            TiposMantenimientoTableSeeder::class,
-            TiposEventoEmergenciaTableSeeder::class,
-            VehiculosTableSeeder::class,
-            CecosTableSeeder::class,
-            ProyectosTableSeeder::class,
-            SolicitudVehiculoTableSeeder::class,
-            AsignacionesVehiculosTableSeeder::class,
-            ChecklistPlantillasTableSeeder::class,
-            ChecklistSeccionesTableSeeder::class,
-            ChecklistItemsTableSeeder::class,
-            JornadasTableSeeder::class,
-            ReportesInicialesTableSeeder::class,
-            ChecklistRespuestasTableSeeder::class,
-            AbastecimientosTableSeeder::class,
-            ReportesFinalesTableSeeder::class,
-            TrackingPointsTableSeeder::class,
-            SolicitudesDevolucionTableSeeder::class,
+
+            // 3) Catálogos básicos (vehículos, combustibles, mantenimiento, etc.)
+            TiposBasicosSeeder::class,
+
+            // 4) Conductores iniciales
+            ConductoresSeeder::class,
+
+            // 5) Vehículos de prueba
+            VehiculosSeeder::class,
+
+            // 6) Centros de costo
+            CecosSeeder::class,
+
+            // 7) Proyectos (requieren usuarios + cecos obligatoriamente)
+            ProyectosSeeder::class,
         ]);
     }
 }
