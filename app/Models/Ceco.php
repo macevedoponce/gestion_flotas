@@ -10,35 +10,30 @@ class Ceco extends Model
     use HasFactory;
 
     protected $table = 'cecos';
-
     protected $primaryKey = 'id_ceco';
 
-    public $timestamps = true;
-
+    // Campos que pueden asignarse masivamente
     protected $fillable = [
-        'codigo_ceco',
-        'descripcion_ceco',
-        'responsable_id',
-        'tipo_ceco',
-    ];
-
-    protected $casts = [
-        'responsable_id' => 'integer',
+        'codigo',
+        'descripcion',
     ];
 
     // ============================
     // RELACIONES
     // ============================
 
-    // Usuario responsable del CECO
-    public function responsable()
-    {
-        return $this->belongsTo(User::class, 'responsable_id');
-    }
-
-    // Proyectos asociados al CECO
+    // Un CECO tiene muchos proyectos
     public function proyectos()
     {
         return $this->hasMany(Proyecto::class, 'id_ceco');
+    }
+
+    // ============================
+    // SCOPES ÚTILES
+    // ============================
+
+    public function scopePorCodigo($query, $codigo)
+    {
+        return $query->where('codigo', $codigo);
     }
 }

@@ -2,12 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReporteInicial extends Model
 {
-    use HasFactory;
+    use SoftDeletes;
 
     protected $table = 'reportes_iniciales';
     protected $primaryKey = 'id_reporte_inicial';
@@ -18,69 +18,36 @@ class ReporteInicial extends Model
         'foto_km_inicial',
         'motivo_traslado',
         'destino',
-        'cantidad_acompanantes',
         'acompanantes',
         'ubicacion_inicio',
         'checklist_completado',
-        'fecha_reporte',
+
+        'km_validado',
+        'estado_validacion',
+        'observacion_validacion',
+        'validado_por',
+        'validado_en',
     ];
 
     protected $casts = [
-        'fecha_reporte'       => 'datetime',
-        'acompanantes'        => 'array',
-        'ubicacion_inicio'    => 'array', // para manejar Point (GeoJSON API)
-        'checklist_completado'=> 'boolean',
-        'km_inicial'          => 'decimal:2',
+        'acompanantes' => 'array',
+        'checklist_completado' => 'boolean',
+        'km_inicial' => 'float',
+        'km_validado' => 'float',
     ];
 
-    // ============================
-    // RELACIONES
-    // ============================
-
-    // Pertenencia a una jornada
     public function jornada()
     {
-        return $this->belongsTo(Jornada::class, 'id_jornada');
+        return $this->belongsTo(Jornada::class, 'id_jornada', 'id_jornada');
     }
 
-    // Respuestas de checklist asignado a este reporte inicial
-    public function checklistRespuestas()
+    public function validador()
     {
-        return $this->hasMany(ChecklistRespuesta::class, 'id_reporte_inicial');
+        return $this->belongsTo(User::class, 'validado_por');
     }
 
-    // ============================
-    // SCOPES
-    // ============================
-
-    public function scopeConChecklist($q)
-    {
-        return $q->where('checklist_completado', true);
-    }
-
-    // ============================
-    // MÉTODOS DE NEGOCIO
-    // ============================
-
-    // Verifica si el reporte tiene checklist completo
-    public function checklistCompleto()
-    {
-        return $this->checklist_completado === true;
-    }
-
-    // Cargar acompañantes de una manera segura
-    public function registrarAcompanantes(array $data)
-    {
-        $this->acompanantes = $data;
-        $this->cantidad_acompanantes = count($data);
-        $this->save();
-    }
-
-    // Verificación si el reporte inicial está listo
-    public function completo()
-    {
-        return $this->km_inicial !== null 
-            && $this->foto_km_inicial !== null 
-            && $this->checklist_completado === true;
-    }
+    public function checklistEjecucion()
+{
+    return $this->hasOne(ChecklistEjecucion::class, 'id_reporte_inicial', 'id_reporte_inicial');
+}
 }

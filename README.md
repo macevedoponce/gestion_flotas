@@ -1,66 +1,206 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+---
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+## 🚗 Sistema de Gestión de Flotas  
 
-## About Laravel
+`````markdown
+<div align="center">
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+### Control inteligente de activos vehiculares para organizaciones modernas
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+![Laravel](https://img.shields.io/badge/Laravel-11-red?logo=laravel&logoColor=white)
+![PHP](https://img.shields.io/badge/PHP-8.3-blue?logo=php)
+![Filament](https://img.shields.io/badge/Filament-3.x-purple)
+![Docker](https://img.shields.io/badge/Docker-Compose-blue?logo=docker)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?logo=postgresql)
+![Internal](https://img.shields.io/badge/License-Internal-yellow)
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+**Levanta TODO el entorno completo con un solo comando:**
 
-## Learning Laravel
+> 🟢 **Inicio rápido: Ejecuta en una sola línea**
+```bash
+./init.sh
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+WSL2 + Docker + Laravel + Filament = máxima velocidad y experiencia de desarrollo.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+</div>
 
-## Laravel Sponsors
+---
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+## ✨ Características principales
 
-### Premium Partners
+✔ Solicitudes de vehículos
+✔ Aprobaciones por roles y departamentos
+✔ Asignaciones y devoluciones con control
+✔ Mantenimiento preventivo y correctivo
+✔ Panel de administración con **UI profesional Filament**
+✔ Soporte para posiciones y mapas (PostGIS)
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+---
 
-## Contributing
+## 🚀 Arranque express
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Ejecuta este comando en WSL Ubuntu:
 
-## Code of Conduct
+```bash
+./init.sh
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Incluye automáticamente:
 
-## Security Vulnerabilities
+| Tarea                  | Estado |
+| ---------------------- | :----: |
+| Build Docker completo  |    ✔   |
+| Composer + NPM install |    ✔   |
+| Migraciones + Seeders  |    ✔   |
+| Permisos y links       |    ✔   |
+| Servicios levantados   |   🚀   |
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+---
 
-## License
+## 🌐 Acceso
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Módulo          | URL                                                        |
+| --------------- | ---------------------------------------------------------- |
+| Sitio principal | [http://localhost:8000](http://localhost:8000)             |
+| Filament Admin  | [http://localhost:8000/admin](http://localhost:8000/admin) |
+
+Ejemplo de credenciales (según seed):
+
+```bash
+admin@example.com / password
+```
+
+---
+
+## 🧱 Tecnologías
+
+| Área          | Stack                    |
+| ------------- | ------------------------ |
+| Backend       | Laravel 11 + PHP-FPM 8.3 |
+| UI Admin      | Filament V3              |
+| Frontend      | Vite + TailwindCSS       |
+| Base de datos | PostgreSQL 15 + PostGIS  |
+| Webserver     | Nginx                    |
+| Contenedores  | Docker Compose           |
+| SO óptimo     | WSL2 Ubuntu              |
+
+---
+
+## 🧩 Arquitectura del sistema
+
+```
+┌───────────┐     FastCGI      ┌─────────────┐        ┌────────────────┐
+│   Nginx   │ → (app:9000) →  │ PHP-FPM 8.3 │  ⇆ DB  │ PostGIS 15     │
+│:8000      │                  │ Laravel     │        │ Geodata Ready  │
+└───────────┘                  └─────────────┘        └────────────────┘
+```
+
+---
+
+## 📦 Estructura del repositorio
+
+```
+gestion_flotas/
+├─ app/
+├─ routes/
+├─ public/
+├─ resources/
+├─ docker-compose.yml
+├─ Dockerfile
+├─ init.sh
+└─ docker/nginx/default.conf
+```
+
+---
+
+## 🗄 Modelo de datos (versión inicial)
+
+```
+Usuarios (roles/permisos)
+    │ 1:N
+    ▼
+Solicitudes ── 1:1 ── Asignaciones ── 1:1 ── Devoluciones
+    │
+    │ N:1
+    ▼
+Vehículos ── 1:N ── Mantenimientos
+```
+
+---
+
+## 🔧 Variables de entorno .env
+
+```dotenv
+APP_URL=http://localhost:8000
+
+DB_CONNECTION=pgsql
+DB_HOST=db
+DB_PORT=5432
+DB_DATABASE=gestion_flotas
+DB_USERNAME=postgres
+DB_PASSWORD=postgres
+```
+
+---
+
+## 🧪 Troubleshooting
+
+| Problema                    | Solución                                                 |
+| --------------------------- | -------------------------------------------------------- |
+| vendor/autoload.php missing | `composer install` dentro del contenedor                 |
+| Git ownership warning       | `git config --global --add safe.directory /var/www/html` |
+| Nginx 502                   | `docker compose restart web`                             |
+| Cambios no reflejados       | `docker compose down -v && ./init.sh`                    |
+
+---
+
+## 🛠 Comandos útiles
+
+| Acción               | Comando                        |
+| -------------------- | ------------------------------ |
+| Levantar servicios   | `docker compose up -d`         |
+| Detener servicios    | `docker compose down`          |
+| Ingresar a la app    | `docker compose exec app bash` |
+| Logs en tiempo real  | `docker compose logs -f app`   |
+| Frontend en caliente | `npm run dev`                  |
+
+---
+
+## 🔮 Roadmap
+
+* [ ] GPS Tracking en tiempo real
+* [ ] Dashboard KPIs para vehículos
+* [ ] API Mobile con tokenización segura
+* [ ] Alertas de mantenimiento
+* [ ] Integración IoT
+
+---
+
+## 🤝 Cómo contribuir
+
+```bash
+git checkout -b feature/nueva-funcionalidad
+```
+
+* Código limpio estilo PSR-12
+* Documentar cambios funcionales
+* Pull Request hacia `main`
+
+---
+
+## 📄 Licencia
+
+Uso interno. No distribuir sin autorización.
+
+---
+
+<div align="center">
+
+Hecho con ❤️ usando Laravel + Docker
+Optimizando la gestión vehicular institucional
+
+</div>
+
+
+

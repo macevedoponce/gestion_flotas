@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class SolicitudVehiculo extends Model
 {
@@ -13,9 +13,8 @@ class SolicitudVehiculo extends Model
     protected $primaryKey = 'id_solicitud';
 
     protected $fillable = [
-        'codigo_anexo',
-        'descripcion_proyecto',
         'id_usuario_solicitante',
+        'id_proyecto',
         'id_tipo_vehiculo',
         'motivo_trabajo',
         'lugar_trabajo',
@@ -26,100 +25,43 @@ class SolicitudVehiculo extends Model
         'conductor_externo_dni',
         'conductor_externo_celular',
         'conductor_externo_licencia',
+        'fecha_inicio',
+        'fecha_fin',
         'estado',
     ];
 
-    protected $casts = [
-        'indeterminado' => 'boolean',
-        'requiere_conductor' => 'boolean',
-        'cantidad_dias' => 'integer',
-    ];
-
-    // ============================
+    // =====================================================
     // RELACIONES
-    // ============================
+    // =====================================================
 
-    // Usuario solicitante
+    /** Usuario solicitante */
     public function solicitante()
     {
-        return $this->belongsTo(User::class, 'id_usuario_solicitante');
+        return $this->belongsTo(User::class, 'id_usuario_solicitante', 'id');
     }
 
+    /** Proyecto al que se solicita el vehículo */
     public function proyecto()
     {
-        return $this->belongsTo(Proyecto::class, 'id_proyecto');
+        return $this->belongsTo(Proyecto::class, 'id_proyecto', 'id_proyecto');
     }
 
-    // Tipo de vehículo solicitado
+    /** Tipo de vehículo requerido */
     public function tipoVehiculo()
     {
-        return $this->belongsTo(TipoVehiculo::class, 'id_tipo_vehiculo');
+        return $this->belongsTo(TipoVehiculo::class, 'id_tipo_vehiculo', 'id_tipo');
     }
 
-    // Asignación (puede ser null hasta que la atienda Control y Monitoreo)
+    /** Asignación generada después de la aprobación */
     public function asignacion()
     {
-        return $this->hasOne(AsignacionVehiculo::class, 'id_solicitud');
+        return $this->hasOne(AsignacionVehiculo::class, 'id_solicitud', 'id_solicitud');
     }
 
-    // Devolución asociada a esta solicitud (vía asignación)
-    public function devolucion()
+    /** Para saber si ya tuvo devoluciones */
+    public function devoluciones()
     {
-        return $this->hasOneThrough(
-            SolicitudDevolucion::class,
-            AsignacionVehiculo::class,
-            'id_solicitud',     // asignaciones.id_solicitud
-            'id_asignacion',    // devoluciones.id_asignacion
-            'id_solicitud',
-            'id_asignacion'
-        );
-    }
-
-    // ============================
-    // SCOPES ÚTILES
-    // ============================
-
-    public function scopePendientes($query)
-    {
-        return $query->where('estado', 'PENDIENTE');
-    }
-
-    public function scopeAprobadas($query)
-    {
-        return $query->where('estado', 'APROBADA');
-    }
-
-    public function scopeRechazadas($query)
-    {
-        return $query->where('estado', 'RECHAZADA');
-    }
-
-    public function scopeAsignadas($query)
-    {
-        return $query->where('estado', 'ASIGNADA');
-    }
-
-    // ============================
-    // MÉTODOS DE ESTADO
-    // ============================
-
-    public function estaPendiente()
-    {
-        return $this->estado === 'PENDIENTE';
-    }
-
-    public function estaAsignada()
-    {
-        return $this->estado === 'ASIGNADA';
-    }
-
-    public function estaAprobada()
-    {
-        return $this->estado === 'APROBADA';
-    }
-
-    public function requiereConductorExterno()
-    {
-        return $this->requiere_conductor === false;
+        // Aunque esto ya NO se usará aquí, lo dejamos para funciones generales
+        return $this->hasMany(SolicitudDevolucion::class, 'id_solicitud', 'id_solicitud');
     }
 }

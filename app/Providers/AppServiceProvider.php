@@ -6,6 +6,8 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use App\Models\User;
 use Illuminate\Support\Facades\URL;
+use App\Models\Mantenimiento;
+use App\Observers\MantenimientoObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -39,5 +41,7 @@ class AppServiceProvider extends ServiceProvider
                 return true;
             }
         });
+
+        Mantenimiento::observe(MantenimientoObserver::class);
     }
 }
