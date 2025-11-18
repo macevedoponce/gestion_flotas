@@ -15,6 +15,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Storage;
 
 class AsignacionVehiculoResource extends Resource
 {
@@ -364,7 +365,7 @@ class AsignacionVehiculoResource extends Resource
                 // ==================================================
                 Tables\Actions\Action::make('validarRecojo')
     ->label('Validar Recojo')
-    ->icon('heroicon-o-check-badge')
+    ->icon('heroicon-o-clipboard-document-check')
     ->color('success')
     ->visible(fn ($record) =>
         $record->estado === 'RECOJO_ENVIADO' &&
@@ -426,48 +427,472 @@ class AsignacionVehiculoResource extends Resource
                     ->label('Solicitar devolución')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('danger')
-                    ->visible(fn (AsignacionVehiculo $record) =>
-                        $record->estado === 'EN_USO'
-                        && ! $record->devoluciones()->exists()
-                        && auth()->user()->hasAnyRole(['Super Admin', 'Jefe de Proyecto'])
+                    ->visible(fn ($record) =>
+                        $record->estado === 'EN_USO' &&
+                        auth()->user()->hasAnyRole(['Super Admin', 'Jefe de Proyecto'])
                     )
                     ->form([
-                        Forms\Components\Textarea::make('motivo')
-                            ->label('Motivo / comentarios')
+                        Forms\Components\Textarea::make('comentario_solicitante')
+                            ->label('Motivo de la solicitud')
+                            ->required()
                             ->rows(3),
                     ])
-                    ->requiresConfirmation()
-                    ->action(function (AsignacionVehiculo $record, array $data) {
+                    ->action(function ($record, $data) {
 
-                        SolicitudDevolucion::create([
-                            'id_asignacion'          => $record->id_asignacion,
-                            'id_usuario_solicitante' => auth()->id(),
-                            'estado'                 => 'PENDIENTE_EVIDENCIAS_CONDUCTOR',
-                            'comentarios_revision'   => $data['motivo'] ?? null,
+                        $solicitud = \App\Models\SolicitudDevolucion::create([
+                            'id_asignacion'           => $record->id_asignacion,
+                            'id_usuario_solicitante'  => auth()->id(),
+                            'comentario_solicitante'  => $data['comentario_solicitante'],
+                            'estado'                  => 'PENDIENTE_EVIDENCIAS_CONDUCTOR',
                         ]);
-
-                        $estadoAnterior = $record->estado;
 
                         $record->update([
                             'estado' => 'DEVOLUCION_SOLICITADA',
                         ]);
 
-                        AsignacionLog::create([
+                        \App\Models\AsignacionLog::create([
                             'id_asignacion' => $record->id_asignacion,
                             'id_usuario'    => auth()->id(),
                             'accion'        => 'Solicitud de devolución creada',
                             'detalles'      => [
-                                'estado_anterior' => $estadoAnterior,
-                                'estado_nuevo'    => 'DEVOLUCION_SOLICITADA',
-                                'motivo'          => $data['motivo'] ?? null,
+                                'motivo' => $data['comentario_solicitante'],
                             ],
                         ]);
 
-                        Notification::make()
+                        \Filament\Notifications\Notification::make()
                             ->title('Solicitud de devolución registrada')
                             ->success()
                             ->send();
                     }),
+// ==================================================
+// SUBIR EVIDENCIAS DE DEVOLUCIÓN (CONDUCTOR)
+// ==================================================
+Tables\Actions\Action::make('subirEvidenciasDevolucion')
+    ->label('Subir evidencias de devolución')
+    ->icon('heroicon-o-camera')
+    ->color('warning')
+    ->visible(function ($record) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        return $record->estado === 'DEVOLUCION_SOLICITADA'
+            && $solicitud
+            && $solicitud->estado === 'PENDIENTE_EVIDENCIAS_CONDUCTOR'
+            && auth()->user()->hasAnyRole(['Super Admin', 'Jefe de Proyecto']);
+    })
+    ->form([
+
+        Forms\Components\Section::make('Evidencias fotográficas')
+            ->schema([
+                Forms\Components\FileUpload::make('evidencia_foto_km_dev')
+                    ->label('Foto del tablero (KM)')
+                    ->required()
+                    ->image()
+                    ->directory('devolucion/km'),
+
+                Forms\Components\FileUpload::make('evidencia_foto_frontal_dev')
+                    ->label('Frontal del vehículo')
+                    ->required()
+                    ->image()
+                    ->directory('devolucion/frontal'),
+
+                Forms\Components\FileUpload::make('evidencia_foto_posterior_dev')
+                    ->label('Posterior del vehículo')
+                    ->required()
+                    ->image()
+                    ->directory('devolucion/posterior'),
+
+                Forms\Components\FileUpload::make('evidencia_foto_lat_izq_dev')
+                    ->label('Lateral izquierda')
+                    ->required()
+                    ->image()
+                    ->directory('devolucion/lateral_izq'),
+
+                Forms\Components\FileUpload::make('evidencia_foto_lat_der_dev')
+                    ->label('Lateral derecha')
+                    ->required()
+                    ->image()
+                    ->directory('devolucion/lateral_der'),
+
+                Forms\Components\FileUpload::make('evidencia_fotos_extra_dev')
+                    ->label('Fotos adicionales')
+                    ->multiple()
+                    ->image()
+                    ->directory('devolucion/adicional'),
+            ])
+            ->columns(2),
+
+        Forms\Components\Section::make('Información adicional')
+            ->schema([
+                Forms\Components\Textarea::make('evidencia_observaciones_dev')
+                    ->label('Observaciones')
+                    ->rows(3),
+
+                Forms\Components\TextInput::make('evidencia_ubicacion_text_dev')
+                    ->label('Ubicación textual')
+                    ->placeholder('Ej: Base Lima - Puerta 2'),
+            ]),
+    ])
+    ->action(function ($record, $data) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        $solicitud->update([
+            'evidencia_foto_km_dev'        => $data['evidencia_foto_km_dev'],
+            'evidencia_foto_frontal_dev'   => $data['evidencia_foto_frontal_dev'],
+            'evidencia_foto_posterior_dev' => $data['evidencia_foto_posterior_dev'],
+            'evidencia_foto_lat_izq_dev'   => $data['evidencia_foto_lat_izq_dev'],
+            'evidencia_foto_lat_der_dev'   => $data['evidencia_foto_lat_der_dev'],
+            'evidencia_fotos_extra_dev'    => $data['evidencia_fotos_extra_dev'] ?? [],
+            'evidencia_observaciones_dev'  => $data['evidencia_observaciones_dev'] ?? null,
+            'evidencia_ubicacion_text_dev' => $data['evidencia_ubicacion_text_dev'] ?? null,
+            'fecha_evidencias_conductor'   => now(),
+            'id_conductor'                 => $record->id_conductor,
+            'estado'                       => 'PENDIENTE_REVISION_JEFE_PROYECTO',
+        ]);
+
+        \Filament\Notifications\Notification::make()
+            ->title('Evidencias enviadas correctamente')
+            ->success()
+            ->send();
+    }),
+
+    // ==================================================
+// VALIDAR DEVOLUCIÓN (JEFE DE PROYECTO)
+// ==================================================
+Tables\Actions\Action::make('validarDevolucionProyecto')
+    ->label('Validar evidencias (Proyecto)')
+    ->icon('heroicon-o-clipboard-document-check')
+    ->color('info')
+    ->modalWidth('4xl')
+    ->visible(function (AsignacionVehiculo $record) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        return $record->estado === 'DEVOLUCION_SOLICITADA'
+            && $solicitud
+            && $solicitud->estado === 'PENDIENTE_REVISION_JEFE_PROYECTO'
+            && auth()->user()->hasAnyRole(['Super Admin', 'Jefe de Proyecto']);
+    })
+    ->form([
+
+        Forms\Components\Section::make('Evidencias del conductor')
+            ->schema([
+                Forms\Components\Placeholder::make('evidencias_conductor')
+                    ->content(function (AsignacionVehiculo $record) {
+
+                        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+                            ->latest()
+                            ->first();
+
+                        if (! $solicitud) {
+                            return new HtmlString("<div class='p-4 text-gray-500'>Sin evidencias.</div>");
+                        }
+
+                        $html = "<div class='space-y-6'>";
+
+                        // KM
+                        if ($solicitud->evidencia_foto_km_dev) {
+                            $html .= "<div>
+                                <h3 class='font-semibold mb-2'>Foto KM</h3>
+                                <img src='" . e(Storage::url($solicitud->evidencia_foto_km_dev)) . "' 
+                                class='rounded-lg border max-w-md'/>
+                            </div>";
+                        }
+
+                        // Fotos principales
+                        $html .= "<div class='grid grid-cols-2 gap-4'>";
+                        $campos = [
+                            'Frontal'  => 'evidencia_foto_frontal_dev',
+                            'Posterior' => 'evidencia_foto_posterior_dev',
+                            'Lateral Izquierda' => 'evidencia_foto_lat_izq_dev',
+                            'Lateral Derecha' => 'evidencia_foto_lat_der_dev',
+                        ];
+
+                        foreach ($campos as $label => $campo) {
+                            if ($solicitud->$campo) {
+                                $html .= "<div>
+                                    <h3 class='font-semibold'>$label</h3>
+                                    <img src='" . e(Storage::url($solicitud->$campo)) . "' 
+                                    class='rounded-lg border'/>
+                                </div>";
+                            }
+                        }
+                        $html .= "</div>";
+
+                        // Fotos extra
+                        if (is_array($solicitud->evidencia_fotos_extra_dev) && count($solicitud->evidencia_fotos_extra_dev)) {
+                            $html .= "<div>
+                                <h3 class='font-semibold mb-2'>Fotos adicionales</h3>
+                                <div class='grid grid-cols-3 gap-4'>";
+                            foreach ($solicitud->evidencia_fotos_extra_dev as $foto) {
+                                $html .= "<img src='" . e(Storage::url($foto)) . "' class='rounded-lg border'/>";
+                            }
+                            $html .= "</div></div>";
+                        }
+
+                        // Observaciones
+                        if ($solicitud->evidencia_observaciones_dev) {
+                            $html .= "<div>
+                                <h3 class='font-semibold'>Observaciones</h3>
+                                <p class='p-3 bg-gray-100 rounded-lg'>" . e($solicitud->evidencia_observaciones_dev) . "</p>
+                            </div>";
+                        }
+
+                        // Ubicación
+                        if ($solicitud->evidencia_ubicacion_text_dev) {
+                            $html .= "<div>
+                                <h3 class='font-semibold'>Ubicación textual</h3>
+                                <p class='p-2 bg-gray-100 rounded-lg'>" . e($solicitud->evidencia_ubicacion_text_dev) . "</p>
+                            </div>";
+                        }
+
+                        $html .= "</div>";
+
+                        return new HtmlString($html);
+                    }),
+            ]),
+
+        Forms\Components\Textarea::make('comentario_valida_proyecto')
+            ->label('Comentarios del Jefe de Proyecto')
+            ->rows(3),
+
+        Forms\Components\Select::make('accion')
+            ->label('Acción')
+            ->options([
+                'APROBAR'  => 'Aprobar evidencias',
+                'RECHAZAR' => 'Rechazar y pedir nuevas',
+            ])
+            ->required(),
+    ])
+    ->action(function (AsignacionVehiculo $record, array $data) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        if ($data['accion'] === 'RECHAZAR') {
+
+            $solicitud->update([
+                'estado'                     => 'PENDIENTE_EVIDENCIAS_CONDUCTOR',
+                'comentario_valida_proyecto' => $data['comentario_valida_proyecto'],
+                'id_usuario_valida_proyecto' => auth()->id(),
+                'fecha_valida_proyecto'      => now(),
+            ]);
+
+            \Filament\Notifications\Notification::make()
+                ->title('Evidencias rechazadas — conductor debe reenviar')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // APRUEBA
+        $solicitud->update([
+            'estado'                     => 'PENDIENTE_REVISION_CONTROL',
+            'comentario_valida_proyecto' => $data['comentario_valida_proyecto'],
+            'id_usuario_valida_proyecto' => auth()->id(),
+            'fecha_valida_proyecto'      => now(),
+        ]);
+
+        \Filament\Notifications\Notification::make()
+            ->title('Evidencias aprobadas — pendiente revisión de Control')
+            ->success()
+            ->send();
+    }),
+
+
+// ==================================================
+// VALIDACIÓN FINAL (CONTROL)
+// ==================================================
+Tables\Actions\Action::make('validarDevolucionControl')
+    ->label('Validación final (Control)')
+    ->icon('heroicon-o-check-badge')
+    ->color('success')
+    ->modalWidth('4xl')
+    ->visible(function ($record) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        return $record->estado === 'DEVOLUCION_SOLICITADA'
+            && $solicitud
+            && $solicitud->estado === 'PENDIENTE_REVISION_CONTROL'
+            && auth()->user()->hasAnyRole(['Super Admin', 'Jefe de Control y Monitoreo']);
+    })
+    ->form([
+
+        // ==================================================
+        // MOSTRAR EVIDENCIAS (IGUAL QUE PROYECTO)
+        // ==================================================
+        Forms\Components\Section::make('Evidencias del conductor')
+            ->schema([
+                Forms\Components\Placeholder::make('evidencias_control')
+                    ->content(function (AsignacionVehiculo $record) {
+
+                        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+                            ->latest()
+                            ->first();
+
+                        if (! $solicitud) {
+                            return new HtmlString("<div class='p-4 text-sm text-gray-500'>Sin evidencias registradas.</div>");
+                        }
+
+                        $html = "<div class='space-y-6'>";
+
+                        // Foto KM
+                        if ($solicitud->evidencia_foto_km_dev) {
+                            $html .= "
+                                <div>
+                                    <h3 class='font-semibold mb-2'>Foto del tablero (KM)</h3>
+                                    <img src='" . e(Storage::url($solicitud->evidencia_foto_km_dev)) . "'
+                                         class='rounded-lg border max-w-md' />
+                                </div>";
+                        }
+
+                        // Fotos principales
+                        $html .= "<div class='grid grid-cols-2 gap-4'>";
+                        $campos = [
+                            'Frontal' => 'evidencia_foto_frontal_dev',
+                            'Posterior' => 'evidencia_foto_posterior_dev',
+                            'Lateral izquierda' => 'evidencia_foto_lat_izq_dev',
+                            'Lateral derecha' => 'evidencia_foto_lat_der_dev',
+                        ];
+
+                        foreach ($campos as $label => $campo) {
+                            if ($solicitud->$campo) {
+                                $html .= "
+                                    <div>
+                                        <h3 class='font-semibold'>$label</h3>
+                                        <img src='" . e(Storage::url($solicitud->$campo)) . "'
+                                             class='rounded-lg border' />
+                                    </div>";
+                            }
+                        }
+                        $html .= "</div>";
+
+                        // Fotos extra
+                        if (is_array($solicitud->evidencia_fotos_extra_dev) && count($solicitud->evidencia_fotos_extra_dev)) {
+                            $html .= "
+                                <div>
+                                    <h3 class='font-semibold mb-2'>Fotos adicionales</h3>
+                                    <div class='grid grid-cols-3 gap-4'>";
+                            foreach ($solicitud->evidencia_fotos_extra_dev as $foto) {
+                                $html .= "
+                                    <img src='" . e(Storage::url($foto)) . "'
+                                         class='rounded-lg border' />";
+                            }
+                            $html .= "</div></div>";
+                        }
+
+                        // Observaciones del conductor
+                        if ($solicitud->evidencia_observaciones_dev) {
+                            $html .= "
+                                <div>
+                                    <h3 class='font-semibold mb-1'>Observaciones del conductor</h3>
+                                    <p class='p-3 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200'>
+                                        " . e($solicitud->evidencia_observaciones_dev) . "
+                                    </p>
+                                </div>
+                            ";
+                        }
+
+                        // Ubicación textual
+                        if ($solicitud->evidencia_ubicacion_text_dev) {
+                            $html .= "
+                                <div>
+                                    <h3 class='font-semibold mb-1'>Ubicación textual</h3>
+                                    <p class='p-2 rounded-lg bg-gray-100 dark:bg-gray-800'>
+                                        " . e($solicitud->evidencia_ubicacion_text_dev) . "
+                                    </p>
+                                </div>
+                            ";
+                        }
+
+                        $html .= "</div>";
+
+                        return new HtmlString($html);
+                    }),
+            ]),
+
+        // ==================================================
+        // CAMPOS DE DECISIÓN DEL JEFE DE CONTROL
+        // ==================================================
+        Forms\Components\Textarea::make('comentario_valida_control')
+            ->label('Comentarios del Jefe de Control')
+            ->rows(3),
+
+        Forms\Components\Select::make('accion')
+            ->label('Acción final')
+            ->options([
+                'APROBAR'  => 'Aprobar devolución',
+                'RECHAZAR' => 'Rechazar devolución',
+            ])
+            ->required(),
+    ])
+    ->action(function ($record, $data) {
+
+        $solicitud = SolicitudDevolucion::where('id_asignacion', $record->id_asignacion)
+            ->latest()
+            ->first();
+
+        if ($data['accion'] === 'RECHAZAR') {
+
+            $solicitud->update([
+                'estado'                     => 'RECHAZADO_POR_CONTROL',
+                'comentario_valida_control'  => $data['comentario_valida_control'],
+                'id_usuario_valida_control'  => auth()->id(),
+                'fecha_valida_control'       => now(),
+            ]);
+
+            \Filament\Notifications\Notification::make()
+                ->title('Devolución rechazada — revisará nuevamente Proyecto')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
+        // APROBADA
+        $solicitud->update([
+            'estado'                     => 'APROBADA',
+            'comentario_valida_control'  => $data['comentario_valida_control'],
+            'id_usuario_valida_control'  => auth()->id(),
+            'fecha_valida_control'       => now(),
+        ]);
+
+        // Actualizar estado de asignación
+        $record->update(['estado' => 'FINALIZADA']);
+
+        // Liberar vehículo automáticamente
+        if ($record->vehiculo) {
+            $record->vehiculo->update(['estado' => 'DISPONIBLE']);
+        }
+
+        // Bitácora
+        \App\Models\AsignacionLog::create([
+            'id_asignacion' => $record->id_asignacion,
+            'id_usuario'    => auth()->id(),
+            'accion'        => 'Devolución aprobada (Control)',
+            'detalles'      => [
+                'estado_final' => 'FINALIZADA',
+            ],
+        ]);
+
+        \Filament\Notifications\Notification::make()
+            ->title('Devolución aprobada — Vehículo disponible')
+            ->success()
+            ->send();
+    }),
+
 
                 // ==================================================
                 // BITÁCORA (timeline visual)

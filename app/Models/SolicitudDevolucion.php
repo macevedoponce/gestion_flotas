@@ -13,29 +13,37 @@ class SolicitudDevolucion extends Model
         'id_asignacion',
         'id_usuario_solicitante',
         'fecha_solicitud',
-        'fotos_evidencia',
-        'videos_evidencia',
-        'evidencias_conductor',
-        'observaciones_conductor',
-        'notificado_conductor',
-        'validado_por_proyecto',
-        'fecha_validacion_proyecto',
-        'comentarios_validacion_proyecto',
-        'validado_por',
-        'fecha_revision',
-        'comentarios_revision',
+        'comentario_solicitante',
+
+        'id_conductor',
+        'evidencia_foto_km_dev',
+        'evidencia_foto_frontal_dev',
+        'evidencia_foto_posterior_dev',
+        'evidencia_foto_lat_izq_dev',
+        'evidencia_foto_lat_der_dev',
+        'evidencia_fotos_extra_dev',
+        'evidencia_observaciones_dev',
+        'evidencia_ubicacion_text_dev',
+        'evidencia_ubicacion_dev',
+        'fecha_evidencias_conductor',
+
+        'id_usuario_valida_proyecto',
+        'comentario_valida_proyecto',
+        'fecha_valida_proyecto',
+
+        'id_usuario_valida_control',
+        'comentario_valida_control',
+        'fecha_valida_control',
+
         'estado',
-        'ubicacion_entrega',
-        'ubicacion_text',
     ];
 
     protected $casts = [
-        'fotos_evidencia' => 'array',
-        'videos_evidencia' => 'array',
-        'evidencias_conductor' => 'array',
+        'evidencia_fotos_extra_dev' => 'array',
         'fecha_solicitud' => 'datetime',
-        'fecha_validacion_proyecto' => 'datetime',
-        'fecha_revision' => 'datetime',
+        'fecha_evidencias_conductor' => 'datetime',
+        'fecha_valida_proyecto' => 'datetime',
+        'fecha_valida_control' => 'datetime',
     ];
 
     public function asignacion()
@@ -48,13 +56,18 @@ class SolicitudDevolucion extends Model
         return $this->belongsTo(User::class, 'id_usuario_solicitante');
     }
 
-    public function validadorProyecto()
+    public function revisorProyecto()
     {
-        return $this->belongsTo(User::class, 'validado_por_proyecto');
+        return $this->belongsTo(User::class, 'id_usuario_valida_proyecto');
     }
 
-    public function validadorFinal()
+    public function revisorControl()
     {
-        return $this->belongsTo(User::class, 'validado_por');
+        return $this->belongsTo(User::class, 'id_usuario_valida_control');
+    }
+
+    public function conductor()
+    {
+        return $this->belongsTo(Conductor::class, 'id_conductor', 'id_conductor');
     }
 }
