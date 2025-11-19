@@ -135,6 +135,12 @@ class ConductorResource extends Resource
                         'warning' => 'OCUPADO',
                         'danger'  => 'INACTIVO',
                     ]),
+                Tables\Columns\BadgeColumn::make('tipo_conductor')
+                    ->label('Tipo')
+                    ->colors([
+                        'primary' => 'INTERNO',
+                        'warning' => 'EXTERNO',
+                    ]),
 
                 Tables\Columns\IconColumn::make('activo')
                     ->boolean()

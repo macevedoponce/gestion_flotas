@@ -28,6 +28,7 @@ class SolicitudVehiculo extends Model
         'fecha_inicio',
         'fecha_fin',
         'estado',
+        'conductor_creado_externo' => 'boolean',
     ];
 
     // =====================================================

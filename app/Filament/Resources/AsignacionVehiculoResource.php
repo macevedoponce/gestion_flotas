@@ -877,6 +877,11 @@ Tables\Actions\Action::make('validarDevolucionControl')
             $record->vehiculo->update(['estado' => 'DISPONIBLE']);
         }
 
+        // Liberar conductor también
+        if ($record->conductor) {
+            $record->conductor->update(['estado_disponibilidad' => 'DISPONIBLE']);
+        }
+
         // Bitácora
         \App\Models\AsignacionLog::create([
             'id_asignacion' => $record->id_asignacion,

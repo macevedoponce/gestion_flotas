@@ -23,6 +23,7 @@ class Conductor extends Model
         'password_hash',
         'estado_disponibilidad',
         'activo',
+        'tipo_conductor',
     ];
 
     protected $casts = [
@@ -65,8 +66,10 @@ class Conductor extends Model
     // Conductores disponibles para una asignación
     public function scopeDisponibles($query)
     {
-        return $query->where('estado_disponibilidad', 'DISPONIBLE')
-                     ->where('activo', true);
+        return $query
+            ->where('estado_disponibilidad', 'DISPONIBLE')
+            ->where('activo', true)
+            ->where('tipo_conductor', 'INTERNO');
     }
 
     // Conductores activos en el sistema

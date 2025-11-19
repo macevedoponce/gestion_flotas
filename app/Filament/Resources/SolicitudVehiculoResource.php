@@ -18,6 +18,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\HtmlString;
+
 
 class SolicitudVehiculoResource extends Resource
 {
@@ -278,6 +280,9 @@ class SolicitudVehiculoResource extends Resource
                     )
                     ->form([
 
+                         Forms\Components\View::make('filament.solicitudes.partials.conductor-externo')
+                            ->visible(fn ($record) => ! $record->requiere_conductor),
+
                         // ======================================================
                         // VALIDACIÓN DE VEHÍCULOS DISPONIBLES
                         // ======================================================
@@ -366,33 +371,47 @@ class SolicitudVehiculoResource extends Resource
 
                     ->action(function ($record, array $data) {
 
-                        // CREAR LA ASIGNACIÓN
-                        AsignacionVehiculo::create([
-                            'id_solicitud' => $record->id_solicitud,
-                            'id_proyecto'  => $record->id_proyecto,
-                            'id_vehiculo'  => $data['id_vehiculo'],
-                            'id_conductor' => $record->requiere_conductor ? ($data['id_conductor'] ?? null) : null,
+                        // 1. Determinar conductor final
+                        if ($record->requiere_conductor) {
+                            $idConductor = $data['id_conductor'] ?? null;
+                        } else {
+                            // Crear EXTERNO
+                            $conductor = app(\App\Services\ConductorService::class)
+                                            ->crearDesdeSolicitud($record);
+
+                            $idConductor = $conductor->id_conductor;
+                        }
+
+                        // 2. Crear asignación
+                        $asignacion = AsignacionVehiculo::create([
+                            'id_solicitud'    => $record->id_solicitud,
+                            'id_proyecto'     => $record->id_proyecto,
+                            'id_vehiculo'     => $data['id_vehiculo'],
+                            'id_conductor'    => $idConductor,
                             'id_jefe_control' => auth()->id(),
-                            'estado'         => 'ASIGNADO', 
-                            'observaciones' => $data['observaciones'] ?? null,
+                            'estado'          => 'ASIGNADO',
+                            'observaciones'   => $data['observaciones'] ?? null,
                         ]);
 
-                        // ACTUALIZAR ESTADOS
+                        // 3. Marcar vehículo como ocupado
                         Vehiculo::where('id_vehiculo', $data['id_vehiculo'])
                             ->update(['estado' => 'ASIGNADO']);
 
-                        if ($record->requiere_conductor && !empty($data['id_conductor'])) {
-                            Conductor::where('id_conductor', $data['id_conductor'])
+                        // 4. Marcar conductor como ocupado
+                        if ($idConductor) {
+                            Conductor::where('id_conductor', $idConductor)
                                 ->update(['estado_disponibilidad' => 'OCUPADO']);
                         }
 
+                        // 5. Cambiar estado de solicitud
                         $record->update(['estado' => 'ASIGNADO']);
 
                         Notification::make()
                             ->title('Vehículo asignado correctamente')
                             ->success()
                             ->send();
-                    }),
+                    })
+
             ]);
     }
 
